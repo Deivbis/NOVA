@@ -1,0 +1,1 @@
+"""NOVA permanent orb interface."""
