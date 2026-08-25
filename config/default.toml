@@ -1,0 +1,38 @@
+[nova]
+name = "NOVA"
+version = "0.1.0"
+environment = "development"
+language = "es"
+
+[execution]
+mode = "normal"
+debug = false
+
+[connectivity]
+internet_enabled = true
+offline_mode_allowed = true
+
+[ui]
+theme = "dark"
+
+[ui.orb]
+enabled = true
+position = "bottom_right"
+size = "small"
+opacity = 0.75
+click_through = true
+gaming_mode = false
+
+[voice]
+enabled = false
+wake_word_enabled = false
+stt_enabled = false
+tts_enabled = false
+
+[paths]
+data = "data"
+database = "data/database"
+cache = "data/cache"
+backups = "data/backups"
+logs = "data/logs"
+models = "models"

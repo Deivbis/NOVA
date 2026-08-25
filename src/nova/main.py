@@ -1,4 +1,13 @@
+from pathlib import Path
+
+from nova.config import ConfigurationService
 from nova.core import ConnectivityState, CoreOrchestrator, NovaState
+
+
+def create_configuration() -> ConfigurationService:
+    config_path = Path("config/default.toml")
+
+    return ConfigurationService(config_path)
 
 
 def create_core() -> CoreOrchestrator:
@@ -14,8 +23,12 @@ def main() -> None:
     print("NOVA – Personal Intelligence Platform")
     print("NOVA está iniciando...")
 
+    configuration = create_configuration()
+    config = configuration.initialize()
+
     core = create_core()
 
+    print(f"Configuración: {config.nova.name} {config.nova.version}")
     print(f"Estado: {core.state.value}")
     print(f"Conectividad: {core.connectivity.value}")
 
