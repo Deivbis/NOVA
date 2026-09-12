@@ -623,9 +623,29 @@ Item {
                 0.10
 
             ShapePath {
+                property real waveMotion: 0.0
+
                 fillColor: "transparent"
 
                 strokeColor: root.stateColor
+                capStyle: ShapePath.RoundCap
+
+                NumberAnimation on waveMotion {
+                    running:
+                        root.orbState === "listening" ||
+                        root.orbState === "responding"
+
+                    loops: Animation.Infinite
+                    from: 0.0
+                    to: Math.PI * 2
+
+                    duration:
+                        root.orbState === "listening"
+                            ? 1150
+                            : 1650
+
+                    easing.type: Easing.InOutSine
+                }
 
                 strokeWidth:
                     root.orbState === "listening"
@@ -640,10 +660,10 @@ Item {
                     y: leftEnergy.height * 0.50
 
                     control1X: leftEnergy.width * 0.17
-                    control1Y: leftEnergy.height * 0.20
+                    control1Y: leftEnergy.height * (0.20 + Math.sin(parent.waveMotion) * 0.08)
 
                     control2X: leftEnergy.width * 0.30
-                    control2Y: leftEnergy.height * 0.80
+                    control2Y: leftEnergy.height * (0.80 - Math.sin(parent.waveMotion) * 0.08)
                 }
             }
 
@@ -692,9 +712,29 @@ Item {
                 0.08
 
             ShapePath {
+                property real waveMotion: 0.0
+
                 fillColor: "transparent"
 
                 strokeColor: root.stateColor
+                capStyle: ShapePath.RoundCap
+
+                NumberAnimation on waveMotion {
+                    running:
+                        root.orbState === "listening" ||
+                        root.orbState === "responding"
+
+                    loops: Animation.Infinite
+                    from: Math.PI
+                    to: Math.PI * 3
+
+                    duration:
+                        root.orbState === "listening"
+                            ? 1250
+                            : 1500
+
+                    easing.type: Easing.InOutSine
+                }
 
                 strokeWidth:
                     root.orbState === "responding"
@@ -709,10 +749,10 @@ Item {
                     y: rightEnergy.height * 0.50
 
                     control1X: rightEnergy.width * 0.83
-                    control1Y: rightEnergy.height * 0.80
+                    control1Y: rightEnergy.height * (0.80 - Math.sin(parent.waveMotion) * 0.08)
 
                     control2X: rightEnergy.width * 0.70
-                    control2Y: rightEnergy.height * 0.20
+                    control2Y: rightEnergy.height * (0.20 + Math.sin(parent.waveMotion) * 0.08)
                 }
             }
 
@@ -1205,3 +1245,6 @@ Item {
         }
     }
 }
+
+
+
