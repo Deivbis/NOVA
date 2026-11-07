@@ -62,5 +62,3 @@ class MigrationRunner:
             """,
             (version, now, now),
         )
-
-        self.connection.commit()

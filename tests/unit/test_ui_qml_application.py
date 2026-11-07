@@ -1,0 +1,176 @@
+from unittest.mock import MagicMock
+import pytest
+from nova.ui.qml import application
+
+
+class FakeSignal:
+    def __init__(self):
+        self.callback = None
+
+    def connect(self, callback):
+        self.callback = callback
+
+    def emit(self):
+        if self.callback is not None:
+            self.callback()
+
+
+class FakeApplication:
+    def __init__(self, _args):
+        self.aboutToQuit = FakeSignal()
+
+    def installNativeEventFilter(self, _event_filter):
+        pass
+
+    def exec(self):
+        self.aboutToQuit.emit()
+        return 0
+
+
+class FakeEngine:
+    def __init__(self, root_objects):
+        self._root_objects = root_objects
+        self._context = MagicMock()
+
+    def rootContext(self):
+        return self._context
+
+    def load(self, _url):
+        pass
+
+    def rootObjects(self):
+        return self._root_objects
+
+
+class FakeOrb:
+    def objectName(self):
+        return "PermanentOrb"
+
+
+@pytest.fixture
+def startup_mocks(monkeypatch, tmp_path):
+    fake_app = FakeApplication([])
+    storage = MagicMock()
+    engine = FakeEngine(
+        [
+            MagicMock(),
+            FakeOrb(),
+        ]
+    )
+    controller = MagicMock()
+    bridge = MagicMock()
+    bridge.orbStateChanged = FakeSignal()
+    bridge.orbState = "idle"
+
+    dll_directory = MagicMock()
+
+    monkeypatch.setattr(
+        application.os,
+        "add_dll_directory",
+        lambda _path: dll_directory,
+    )
+    monkeypatch.setattr(
+        application,
+        "QGuiApplication",
+        lambda _args: fake_app,
+    )
+    monkeypatch.setattr(
+        application,
+        "StorageService",
+        lambda _path: storage,
+    )
+    monkeypatch.setattr(
+        application,
+        "CoreOrchestrator",
+        MagicMock,
+    )
+    monkeypatch.setattr(
+        application,
+        "NovaUiBridge",
+        lambda *_args: bridge,
+    )
+    monkeypatch.setattr(
+        application,
+        "QQmlApplicationEngine",
+        lambda: engine,
+    )
+    monkeypatch.setattr(
+        application,
+        "WindowsOrbController",
+        lambda _orb: controller,
+    )
+    monkeypatch.setattr(
+        application,
+        "default_database_path",
+        lambda: tmp_path / "nova.db",
+    )
+
+    return {
+        "app": fake_app,
+        "storage": storage,
+        "engine": engine,
+        "controller": controller,
+        "dll_directory": dll_directory,
+    }
+
+
+def test_storage_closes_when_main_qml_fails(
+    startup_mocks,
+):
+    storage = startup_mocks["storage"]
+    engine = startup_mocks["engine"]
+
+    engine._root_objects = []
+
+    result = application.main()
+
+    assert result == 1
+    storage.initialize.assert_called_once()
+    storage.close.assert_called_once()
+    startup_mocks["dll_directory"].close.assert_called_once()
+
+
+def test_storage_closes_when_orb_qml_fails(
+    startup_mocks,
+):
+    storage = startup_mocks["storage"]
+    engine = startup_mocks["engine"]
+
+    engine._root_objects = [
+        MagicMock(),
+    ]
+
+    result = application.main()
+
+    assert result == 1
+    storage.close.assert_called_once()
+    startup_mocks["dll_directory"].close.assert_called_once()
+
+
+def test_storage_closes_when_orb_object_is_missing(
+    startup_mocks,
+):
+    storage = startup_mocks["storage"]
+    engine = startup_mocks["engine"]
+
+    engine._root_objects = [
+        MagicMock(),
+        MagicMock(),
+    ]
+
+    result = application.main()
+
+    assert result == 1
+    storage.close.assert_called_once()
+
+
+def test_storage_closes_after_normal_shutdown(
+    startup_mocks,
+):
+    storage = startup_mocks["storage"]
+
+    result = application.main()
+
+    assert result == 0
+    storage.close.assert_called_once()
+    startup_mocks["dll_directory"].close.assert_called_once()

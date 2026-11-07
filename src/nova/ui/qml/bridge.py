@@ -1,24 +1,97 @@
+
 from __future__ import annotations
 
-from PySide6.QtCore import QObject, Property, QTimer, Signal
+from uuid import UUID
 
-from nova.core import CoreOrchestrator
+from PySide6.QtCore import (
+    QObject,
+    Property,
+    QThread,
+    QTimer,
+    Signal,
+    Slot,
+)
+
+from nova.core import (
+    Command,
+    Conversation,
+    CoreOrchestrator,
+    NovaState,
+)
+from nova.core.requests import QueuedRequest, RequestStatus
+from nova.core.request_queue import RequestQueue
+from nova.core.result import Result
+from nova.storage.service import StorageService
 from nova.ui.state import UIState
+
+
+class RequestWorker(QObject):
+    """Execute one NOVA request outside the UI thread."""
+
+    completed = Signal(object, object)
+
+    def __init__(
+        self,
+        orchestrator: CoreOrchestrator,
+        request: QueuedRequest,
+    ) -> None:
+        super().__init__()
+        self._orchestrator = orchestrator
+        self._request = request
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            result = self._orchestrator.dispatch(
+                self._request.command
+            )
+        except Exception as exc:
+            result = Result.fail(
+                code="REQUEST_EXECUTION_ERROR",
+                message=str(exc),
+            )
+
+        self.completed.emit(
+            self._request,
+            result,
+        )
 
 
 class NovaUiBridge(QObject):
     """Bridge between NOVA Core state and the QML visual layer."""
 
     orbStateChanged = Signal()
+    conversationChanged = Signal()
+    conversationsChanged = Signal()
 
     def __init__(
         self,
         orchestrator: CoreOrchestrator,
+        storage_service: StorageService,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
 
         self._orchestrator = orchestrator
+        self._storage_service = storage_service
+
+        repository = storage_service.conversation_repository
+
+        if repository is None:
+            raise RuntimeError(
+                "StorageService must be initialized before "
+                "NovaUiBridge."
+            )
+
+        self._request_queue = RequestQueue()
+        self._requests_by_conversation: dict[UUID, int] = {}
+
+        self._active_thread: QThread | None = None
+        self._active_worker: RequestWorker | None = None
+        self._active_request: QueuedRequest | None = None
+
+        self._conversation = self._load_or_create_conversation()
+
         self._ui_state = UIState.from_core(
             orchestrator.state,
             orchestrator.connectivity,
@@ -28,6 +101,38 @@ class NovaUiBridge(QObject):
         self._timer.setInterval(100)
         self._timer.timeout.connect(self._refresh_state)
         self._timer.start()
+
+    def _repository(self):
+        repository = self._storage_service.conversation_repository
+
+        if repository is None:
+            raise RuntimeError(
+                "Conversation repository is not initialized."
+            )
+
+        return repository
+
+    def _load_or_create_conversation(self) -> Conversation:
+        repository = self._repository()
+        conversations = repository.list_conversations()
+
+        if not conversations:
+            conversation = Conversation()
+            repository.create(
+                conversation,
+                title="Nueva conversación",
+            )
+            return conversation
+
+        conversation_id = UUID(conversations[0]["id"])
+        conversation = repository.get(conversation_id)
+
+        if conversation is None:
+            raise RuntimeError(
+                "Unable to load the active conversation."
+            )
+
+        return conversation
 
     def _refresh_state(self) -> None:
         ui_state = UIState.from_core(
@@ -39,7 +144,6 @@ class NovaUiBridge(QObject):
             return
 
         previous_orb_state = self._ui_state.orb_state
-
         self._ui_state = ui_state
 
         if ui_state.orb_state != previous_orb_state:
@@ -53,3 +157,325 @@ class NovaUiBridge(QObject):
         _get_orb_state,
         notify=orbStateChanged,
     )
+
+    def _get_messages(self) -> list[dict[str, str]]:
+        return [
+            {
+                "role": message.role.value,
+                "content": message.content,
+            }
+            for message in self._conversation.messages
+        ]
+
+    messages = Property(
+        list,
+        _get_messages,
+        notify=conversationChanged,
+    )
+
+    @staticmethod
+    def _conversation_title_from_message(text: str) -> str:
+        normalized = " ".join(text.split())
+
+        if len(normalized) <= 45:
+            return normalized
+
+        preview = normalized[:42].rstrip()
+        last_space = preview.rfind(" ")
+
+        if last_space > 0:
+            preview = preview[:last_space]
+
+        return preview + "..."
+
+    @Slot(str)
+    def send_message(self, text: str) -> None:
+        message = text.strip()
+
+        if not message:
+            return
+
+        repository = self._repository()
+        conversation_id = self._conversation.conversation_id
+
+        is_first_message = not self._conversation.messages
+
+        user_message = self._conversation.add_user_message(message)
+
+        try:
+            repository.add_message(
+                conversation_id,
+                user_message,
+            )
+
+            if is_first_message:
+                repository.update_title(
+                    conversation_id,
+                    self._conversation_title_from_message(message),
+                )
+
+        except Exception:
+            self._reload_conversation(conversation_id)
+            raise
+
+        command = Command(
+            name="chat.generate",
+            payload={"message": message},
+            source="user",
+        )
+
+        request = QueuedRequest(
+            command=command,
+            conversation_id=conversation_id,
+        )
+
+        try:
+            self._request_queue.enqueue(request)
+        except Exception:
+            self._reload_conversation(conversation_id)
+            raise
+
+        self._requests_by_conversation[conversation_id] = (
+            self._requests_by_conversation.get(conversation_id, 0) + 1
+        )
+
+        self.conversationChanged.emit()
+        self.conversationsChanged.emit()
+
+        self._orchestrator.set_state(NovaState.PROCESSING)
+
+        self._process_next_request()
+
+    def _process_next_request(self) -> None:
+        if self._active_thread is not None:
+            return
+
+        request = self._request_queue.dequeue()
+
+        if request is None:
+            self._orchestrator.set_state(NovaState.IDLE)
+            return
+
+        request.status = RequestStatus.RUNNING
+
+        thread = QThread(self)
+        worker = RequestWorker(
+            self._orchestrator,
+            request,
+        )
+
+        worker.moveToThread(thread)
+
+        thread.started.connect(worker.run)
+        worker.completed.connect(self._on_request_completed)
+        worker.completed.connect(thread.quit)
+
+        thread.finished.connect(worker.deleteLater)
+        thread.finished.connect(self._on_worker_thread_finished)
+        thread.finished.connect(thread.deleteLater)
+
+        self._active_thread = thread
+        self._active_worker = worker
+        self._active_request = request
+
+        thread.start()
+
+    @Slot(object, object)
+    def _on_request_completed(
+        self,
+        request: QueuedRequest,
+        result: Result,
+    ) -> None:
+        conversation_id = request.conversation_id
+
+        if not result.success:
+            request.status = RequestStatus.FAILED
+            error = result.error
+
+            print(
+                f"NOVA REQUEST FAILED: "
+                f"{error.code if error else 'UNKNOWN'} - "
+                f"{error.message if error else 'Unknown error'}",
+                flush=True,
+            )
+
+        else:
+            try:
+                repository = self._repository()
+                conversation = repository.get(conversation_id)
+
+                if conversation is None:
+                    raise RuntimeError(
+                        "Conversation no longer exists."
+                    )
+
+                assistant_message = conversation.add_assistant_message(
+                    result.value
+                )
+
+                repository.add_message(
+                    conversation_id,
+                    assistant_message,
+                )
+
+                request.status = RequestStatus.COMPLETED
+
+                if self._conversation.conversation_id == conversation_id:
+                    self._conversation = conversation
+                    self.conversationChanged.emit()
+
+                self.conversationsChanged.emit()
+
+            except Exception as exc:
+                request.status = RequestStatus.FAILED
+
+                print(
+                    f"NOVA RESPONSE PERSISTENCE FAILED: {exc}",
+                    flush=True,
+                )
+
+                self._reload_conversation(conversation_id)
+
+        remaining = self._requests_by_conversation.get(
+            conversation_id,
+            0,
+        ) - 1
+
+        if remaining <= 0:
+            self._requests_by_conversation.pop(
+                conversation_id,
+                None,
+            )
+        else:
+            self._requests_by_conversation[conversation_id] = remaining
+
+        if request.status == RequestStatus.COMPLETED:
+            self._orchestrator.set_state(NovaState.RESPONDING)
+
+    @Slot()
+    def _on_worker_thread_finished(self) -> None:
+        self._active_thread = None
+        self._active_worker = None
+        self._active_request = None
+
+        if self._request_queue.is_empty:
+            self._orchestrator.set_state(NovaState.IDLE)
+        else:
+            self._orchestrator.set_state(NovaState.PROCESSING)
+
+        self._process_next_request()
+
+    def _reload_conversation(self, conversation_id: UUID) -> None:
+        try:
+            conversation = self._repository().get(conversation_id)
+        except Exception:
+            return
+
+        if conversation is None:
+            return
+
+        if self._conversation.conversation_id == conversation_id:
+            self._conversation = conversation
+            self.conversationChanged.emit()
+
+        self.conversationsChanged.emit()
+
+    def _get_conversations(self) -> list[dict[str, str]]:
+        return self._repository().list_conversations()
+
+    conversations = Property(
+        list,
+        _get_conversations,
+        notify=conversationsChanged,
+    )
+
+    def _get_active_conversation_id(self) -> str:
+        return str(self._conversation.conversation_id)
+
+    activeConversationId = Property(
+        str,
+        _get_active_conversation_id,
+        notify=conversationChanged,
+    )
+
+    @Slot(str)
+    def load_conversation(self, conversation_id: str) -> None:
+        try:
+            conversation_uuid = UUID(conversation_id)
+        except ValueError as exc:
+            raise RuntimeError("Invalid conversation id.") from exc
+
+        conversation = self._repository().get(conversation_uuid)
+
+        if conversation is None:
+            raise RuntimeError("Conversation not found.")
+
+        self._conversation = conversation
+        self.conversationChanged.emit()
+
+    @Slot(str, str)
+    def rename_conversation(
+        self,
+        conversation_id: str,
+        new_title: str,
+    ) -> None:
+        title = " ".join(new_title.split())
+
+        if not title:
+            raise ValueError(
+                "Conversation title cannot be empty."
+            )
+
+        try:
+            conversation_uuid = UUID(conversation_id)
+        except ValueError as exc:
+            raise RuntimeError("Invalid conversation id.") from exc
+
+        self._repository().update_title(
+            conversation_uuid,
+            title,
+        )
+
+        self.conversationsChanged.emit()
+
+    @Slot(str)
+    def delete_conversation(self, conversation_id: str) -> None:
+        try:
+            conversation_uuid = UUID(conversation_id)
+        except ValueError as exc:
+            raise RuntimeError("Invalid conversation id.") from exc
+
+        if self._requests_by_conversation.get(conversation_uuid, 0) > 0:
+            print(
+                "NOVA: Cannot delete a conversation with active requests.",
+                flush=True,
+            )
+            return
+
+        repository = self._repository()
+        is_active = conversation_uuid == self._conversation.conversation_id
+
+        deleted = repository.delete(conversation_uuid)
+
+        if not deleted:
+            return
+
+        if is_active:
+            self._conversation = self._load_or_create_conversation()
+            self.conversationChanged.emit()
+
+        self.conversationsChanged.emit()
+
+    @Slot()
+    def new_conversation(self) -> None:
+        conversation = Conversation()
+
+        self._repository().create(
+            conversation,
+            title="Nueva conversación",
+        )
+
+        self._conversation = conversation
+
+        self.conversationsChanged.emit()
+        self.conversationChanged.emit()

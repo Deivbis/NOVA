@@ -1,6 +1,9 @@
 from pathlib import Path
 
 from nova.storage.manager import StorageManager
+from nova.storage.repositories.conversation_repository import (
+    ConversationRepository,
+)
 from nova.storage.repositories.system_repository import SystemRepository
 
 
@@ -11,11 +14,15 @@ class StorageService:
         self.manager = StorageManager(database_path)
 
         self.system_repository: SystemRepository | None = None
+        self.conversation_repository: ConversationRepository | None = None
 
     def initialize(self) -> None:
         self.manager.initialize()
 
         self.system_repository = SystemRepository(
+            self.manager.connection
+        )
+        self.conversation_repository = ConversationRepository(
             self.manager.connection
         )
 
@@ -34,3 +41,4 @@ class StorageService:
     def close(self) -> None:
         self.manager.close()
         self.system_repository = None
+        self.conversation_repository = None

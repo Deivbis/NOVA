@@ -53,3 +53,19 @@ models/*.safetensors
 # Secrets
 secrets/
 credentials/
+
+# Nuitka / PySide6 deployment
+.venv-build/
+nuitka-crash-report.xml
+
+# Local deployment artifacts
+pysidedeploy.spec.bak
+src/nova/ui/qml/pysidedeploy.spec
+
+# Local backups
+*.bak
+
+# Archivos locales de revisión y despliegue
+orb_diff_review.txt
+pysidedeploy.spec
+pysidedeploy-onefile.spec

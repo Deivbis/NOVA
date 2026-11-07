@@ -1,311 +1,208 @@
-﻿import QtQuick
+import QtQuick
 import QtQuick.Shapes
 
 Item {
     id: root
 
-    property string orbState: "idle"
+    // ============================================================
+    // PROPIEDADES DE ESTADO Y ESCALA
+    // ============================================================
+    property string orbState: "idle" // "idle", "listening", "processing", "responding", "error"
     property real orbScale: 1.0
 
-    width: 320 * orbScale
-    height: 320 * orbScale
+    implicitWidth: 320 * orbScale
+    implicitHeight: 320 * orbScale
 
+    // Transición suave de color según el estado
     property color stateColor:
-        orbState === "listening" ? "#22D3EE" :
-        orbState === "processing" ? "#F59E0B" :
-        orbState === "responding" ? "#38BDF8" :
-        orbState === "error" ? "#EF4444" :
-        "#6366F1"
+        orbState === "listening"  ? "#00F2FE" : // Cian brillante
+        orbState === "processing" ? "#FF9900" : // Ámbar / Naranja
+        orbState === "responding" ? "#0066FF" : // Azul eléctrico
+        orbState === "error"      ? "#FF1744" : // Rojo / Neón magenta
+        "#5B21B6"                              // Púrpura profundo (Idle)
 
-    readonly property color coreColor: "#E8F7FF"
+    Behavior on stateColor {
+        ColorAnimation { duration: 400; easing.type: Easing.InOutQuad }
+    }
 
-    property real stateIntensity:
-        orbState === "listening" ? 1.0 :
-        orbState === "processing" ? 1.0 :
-        orbState === "responding" ? 1.0 :
-        orbState === "error" ? 1.0 :
-        1.0
-
-    property real statePulse:
-        orbState === "processing" ? 0.14 :
-        orbState === "listening" ? 0.10 :
-        orbState === "responding" ? 0.12 :
-        orbState === "error" ? 0.16 :
-        0.05
+    readonly property color coreColor: "#FFFFFF"
 
     Item {
         id: orbVisual
-
         anchors.centerIn: parent
-
-        width: 270 * root.orbScale
-        height: 270 * root.orbScale
+        width: 280 * root.orbScale
+        height: 280 * root.orbScale
 
         // ============================================================
-        // 1. HALO PROFUNDO
+        // SECCIÓN 1: HALO DE GLOW PROFUNDO EXTERIOR
         // ============================================================
-
         Rectangle {
             id: deepHalo
-
             anchors.centerIn: parent
-
-            width: parent.width * 1.02
-            height: parent.height * 1.02
-
+            width: parent.width * 1.05
+            height: parent.height * 1.05
             radius: width / 2
-
-            color: root.stateColor
-
-            opacity: 0.035 + root.statePulse
-
-            scale: 1.0
+            color: "transparent"
+            border.color: root.stateColor
+            border.width: 18
+            opacity: root.orbState === "processing" ? 0.28 : 0.12
 
             SequentialAnimation on scale {
                 running: true
                 loops: Animation.Infinite
-
-                NumberAnimation {
-                    from: 0.94
-                    to: 1.06
-                    duration: root.orbState === "processing" ? 1500 : 3200
-                    easing.type: Easing.InOutSine
-                }
-
-                NumberAnimation {
-                    from: 1.06
-                    to: 0.94
-                    duration: root.orbState === "processing" ? 1500 : 3200
-                    easing.type: Easing.InOutSine
-                }
+                NumberAnimation { from: 0.94; to: 1.06; duration: root.orbState === "processing" ? 800 : 2800; easing.type: Easing.InOutSine }
+                NumberAnimation { from: 1.06; to: 0.94; duration: root.orbState === "processing" ? 800 : 2800; easing.type: Easing.InOutSine }
             }
         }
 
         // ============================================================
-        // 2. HALO INTERMEDIO
+        // SECCIÓN 2: HALO INTERMEDIO Y RESPLANDOR
         // ============================================================
-
         Rectangle {
             id: middleHalo
-
             anchors.centerIn: parent
-
-            width: parent.width * 0.88
-            height: parent.height * 0.88
-
+            width: parent.width * 0.90
+            height: parent.height * 0.90
             radius: width / 2
-
             color: root.stateColor
-
-            opacity:
-                root.orbState === "idle" ? 0.045 :
-                root.orbState === "listening" ? 0.10 :
-                root.orbState === "processing" ? 0.12 :
-                root.orbState === "responding" ? 0.10 :
-                0.12
-
-            scale: 1.0
+            opacity: root.orbState === "error" ? 0.20 : 0.08
 
             SequentialAnimation on scale {
                 running: true
                 loops: Animation.Infinite
-
-                NumberAnimation {
-                    from: 0.97
-                    to: 1.03
-                    duration: 2200
-                    easing.type: Easing.InOutSine
-                }
-
-                NumberAnimation {
-                    from: 1.03
-                    to: 0.97
-                    duration: 2200
-                    easing.type: Easing.InOutSine
-                }
+                NumberAnimation { from: 0.97; to: 1.03; duration: 2000; easing.type: Easing.InOutSine }
+                NumberAnimation { from: 1.03; to: 0.97; duration: 2000; easing.type: Easing.InOutSine }
             }
         }
 
         // ============================================================
-        // 3. PULSOS DE ENERGÍA
+        // SECCIÓN 3: PULSOS Y ONDAS DE ENERGÍA DE FONDO
         // ============================================================
-
         Repeater {
             id: energyPulseRepeater
-
             model: 3
 
             Rectangle {
-                id: energyPulse
-
+                required property int index
                 anchors.centerIn: parent
-
-                width: parent.width * 0.34
-                height: parent.height * 0.34
-
+                width: parent.width * 0.40
+                height: parent.height * 0.40
                 radius: width / 2
-
                 color: "transparent"
-
-                border.width:
-                    root.orbState === "processing"
-                        ? 2.0
-                        : 1.2
-
+                border.width: root.orbState === "processing" ? 2.0 : 1.2
                 border.color: root.stateColor
-
                 opacity: 0.0
-
                 scale: 0.55
 
                 SequentialAnimation on scale {
                     running: true
                     loops: Animation.Infinite
-
-                    PauseAnimation {
-                        duration:
-                            index *
-                            (
-                                root.orbState === "processing"
-                                    ? 260
-                                    : 520
-                            )
-                    }
-
-                    NumberAnimation {
-                        from: 0.55
-                        to:
-                            root.orbState === "processing"
-                                ? 1.55
-                                : 1.35
-
-                        duration:
-                            root.orbState === "processing"
-                                ? 900
-                                : 1800
-
-                        easing.type: Easing.OutCubic
-                    }
-
-                    NumberAnimation {
-                        from:
-                            root.orbState === "processing"
-                                ? 0.72
-                                : 0.58
-
-                        to: 0.0
-
-                        duration:
-                            root.orbState === "processing"
-                                ? 900
-                                : 1800
-
-                        easing.type: Easing.InCubic
-                    }
-
-                    PropertyAction {
-                        target: energyPulse
-                        property: "scale"
-                        value: 0.55
-                    }
+                    PauseAnimation { duration: index * (root.orbState === "processing" ? 250 : 500) }
+                    NumberAnimation { from: 0.55; to: root.orbState === "processing" ? 1.55 : 1.35; duration: root.orbState === "processing" ? 900 : 1800; easing.type: Easing.OutCubic }
+                    NumberAnimation { from: root.orbState === "processing" ? 1.55 : 1.35; to: 0.55; duration: 0 }
                 }
 
                 SequentialAnimation on opacity {
                     running: true
                     loops: Animation.Infinite
+                    PauseAnimation { duration: index * (root.orbState === "processing" ? 250 : 500) }
+                    NumberAnimation { from: 0.0; to: root.orbState === "error" ? 0.0 : 0.35; duration: 400; easing.type: Easing.OutCubic }
+                    NumberAnimation { from: 0.35; to: 0.0; duration: root.orbState === "processing" ? 500 : 1400; easing.type: Easing.InCubic }
+                }
+            }
+        }
 
-                    PauseAnimation {
-                        duration:
-                            index *
-                            (
-                                root.orbState === "processing"
-                                    ? 260
-                                    : 520
-                            )
-                    }
+        // ============================================================
+        // SECCIÓN 4: ONDAS LATERALES DE AUDIO IZQUIERDAS
+        // ============================================================
+        Item {
+            id: leftAudioWaves
+            anchors.verticalCenter: parent.verticalCenter
+            x: -parent.width * 0.15
+            width: parent.width * 0.3
+            height: parent.height * 0.4
+            opacity: (root.orbState === "listening" || root.orbState === "responding" || root.orbState === "idle") ? 0.9 : 0.15
 
-                    NumberAnimation {
-                        from: 0.0
-                        to:
-                            root.orbState === "error"
-                                ? 0.0
-                                : root.orbState === "idle"
-                                    ? 0.16
-                                    : 0.42
+            Repeater {
+                model: 6
+                Rectangle {
+                    required property int index
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: index * 9 * root.orbScale
+                    width: 3 * root.orbScale
+                    height: (12 + Math.sin(index) * 10) * root.orbScale
+                    radius: width / 2
+                    color: root.stateColor
 
-                        duration:
-                            root.orbState === "processing"
-                                ? 250
-                                : 450
-
-                        easing.type: Easing.OutCubic
-                    }
-
-                    NumberAnimation {
-                        from:
-                            root.orbState === "processing"
-                                ? 0.72
-                                : 0.58
-
-                        to: 0.0
-
-                        duration:
-                            root.orbState === "processing"
-                                ? 650
-                                : 1350
-
-                        easing.type: Easing.InCubic
-                    }
-
-                    PropertyAction {
-                        target: energyPulse
-                        property: "opacity"
-                        value: 0.0
+                    SequentialAnimation on height {
+                        running: root.orbState === "listening" || root.orbState === "responding"
+                        loops: Animation.Infinite
+                        PauseAnimation { duration: index * 70 }
+                        NumberAnimation { from: 8 * root.orbScale; to: (22 + index * 4) * root.orbScale; duration: root.orbState === "listening" ? 280 : 420; easing.type: Easing.InOutSine }
+                        NumberAnimation { from: (22 + index * 4) * root.orbScale; to: 8 * root.orbScale; duration: root.orbState === "listening" ? 280 : 420; easing.type: Easing.InOutSine }
                     }
                 }
             }
         }
 
+        // ============================================================
+        // SECCIÓN 5: ONDAS LATERALES DE AUDIO DERECHAS
+        // ============================================================
+        Item {
+            id: rightAudioWaves
+            anchors.verticalCenter: parent.verticalCenter
+            x: parent.width * 0.85
+            width: parent.width * 0.3
+            height: parent.height * 0.4
+            opacity: (root.orbState === "listening" || root.orbState === "responding" || root.orbState === "idle") ? 0.9 : 0.15
 
+            Repeater {
+                model: 6
+                Rectangle {
+                    required property int index
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: index * 9 * root.orbScale
+                    width: 3 * root.orbScale
+                    height: (12 + Math.cos(index) * 10) * root.orbScale
+                    radius: width / 2
+                    color: root.stateColor
+
+                    SequentialAnimation on height {
+                        running: root.orbState === "listening" || root.orbState === "responding"
+                        loops: Animation.Infinite
+                        PauseAnimation { duration: (5 - index) * 70 }
+                        NumberAnimation { from: 8 * root.orbScale; to: (22 + (5 - index) * 4) * root.orbScale; duration: root.orbState === "listening" ? 280 : 420; easing.type: Easing.InOutSine }
+                        NumberAnimation { from: (22 + (5 - index) * 4) * root.orbScale; to: 8 * root.orbScale; duration: root.orbState === "listening" ? 280 : 420; easing.type: Easing.InOutSine }
+                    }
+                }
+            }
+        }
 
         // ============================================================
-        // 3. ÓRBITA EXTERIOR PRINCIPAL
+        // SECCIÓN 6: ÓRBITA EXTERIOR PRINCIPAL (Shape Path Arc)
         // ============================================================
-
         Shape {
             id: outerOrbit
-
             anchors.centerIn: parent
-
-            width: parent.width * 0.94
-            height: parent.height * 0.94
-
+            width: parent.width * 0.92
+            height: parent.height * 0.92
             antialiasing: true
             preferredRendererType: Shape.CurveRenderer
 
-            opacity:
-                root.orbState === "idle" ? 0.72 :
-                root.orbState === "listening" ? 0.95 :
-                root.orbState === "processing" ? 1.0 :
-                root.orbState === "responding" ? 0.95 :
-                1.0
-
             ShapePath {
                 fillColor: "transparent"
-
                 strokeColor: root.stateColor
-                strokeWidth: 1.15
+                strokeWidth: 1.8
+                capStyle: ShapePath.RoundCap
 
-                startX: outerOrbit.width * 0.78
-                startY: outerOrbit.height * 0.18
+                startX: outerOrbit.width * 0.8
+                startY: outerOrbit.height * 0.2
 
                 PathArc {
-                    x: outerOrbit.width * 0.18
-                    y: outerOrbit.height * 0.82
-
-                    radiusX: outerOrbit.width * 0.40
-                    radiusY: outerOrbit.height * 0.40
-
+                    x: outerOrbit.width * 0.2
+                    y: outerOrbit.height * 0.8
+                    radiusX: outerOrbit.width * 0.42
+                    radiusY: outerOrbit.height * 0.42
                     useLargeArc: false
                     direction: PathArc.Clockwise
                 }
@@ -314,52 +211,37 @@ Item {
             RotationAnimation on rotation {
                 running: true
                 loops: Animation.Infinite
-
-                from: 0
-                to: 360
-
-                duration:
-                    root.orbState === "processing" ? 7000 :
-                    root.orbState === "listening" ? 11000 :
-                    18000
-
+                from: 0; to: 360
+                duration: root.orbState === "processing" ? 5000 : 14000
                 easing.type: Easing.Linear
             }
         }
 
         // ============================================================
-        // 4. ÓRBITA EXTERIOR SECUNDARIA
+        // SECCIÓN 7: ÓRBITA EXTERIOR SECUNDARIA CONTRA-ROTATORIA
         // ============================================================
-
         Shape {
             id: secondaryOrbit
-
             anchors.centerIn: parent
-
             width: parent.width * 0.84
             height: parent.height * 0.84
-
             antialiasing: true
             preferredRendererType: Shape.CurveRenderer
-
-            opacity: 0.42
+            opacity: 0.6
 
             ShapePath {
                 fillColor: "transparent"
-
                 strokeColor: root.stateColor
-                strokeWidth: 0.85
+                strokeWidth: 1.2
 
-                startX: secondaryOrbit.width * 0.20
-                startY: secondaryOrbit.height * 0.30
+                startX: secondaryOrbit.width * 0.15
+                startY: secondaryOrbit.height * 0.35
 
                 PathArc {
-                    x: secondaryOrbit.width * 0.80
-                    y: secondaryOrbit.height * 0.70
-
-                    radiusX: secondaryOrbit.width * 0.36
-                    radiusY: secondaryOrbit.height * 0.36
-
+                    x: secondaryOrbit.width * 0.85
+                    y: secondaryOrbit.height * 0.65
+                    radiusX: secondaryOrbit.width * 0.38
+                    radiusY: secondaryOrbit.height * 0.38
                     useLargeArc: false
                     direction: PathArc.Counterclockwise
                 }
@@ -368,883 +250,296 @@ Item {
             RotationAnimation on rotation {
                 running: true
                 loops: Animation.Infinite
-
-                from: 360
-                to: 0
-
-                duration:
-                    root.orbState === "processing" ? 5200 :
-                    13000
-
+                from: 360; to: 0
+                duration: root.orbState === "processing" ? 3800 : 10000
                 easing.type: Easing.Linear
             }
         }
 
         // ============================================================
-        // 5. PARTÍCULAS ENERGÉTICAS
+        // SECCIÓN 8: ANILLO EXTERIOR DELIMITADOR
         // ============================================================
-
-        Item {
-            id: energyParticles
-
+        Rectangle {
+            id: outerRing
             anchors.centerIn: parent
-
             width: parent.width * 0.78
             height: parent.height * 0.78
-
-            opacity:
-                root.orbState === "idle" ? 0.32 :
-                root.orbState === "listening" ? 0.82 :
-                root.orbState === "processing" ? 0.72 :
-                root.orbState === "responding" ? 0.86 :
-                0.18
-
-            rotation: 0
+            radius: width / 2
+            color: "transparent"
+            border.width: 1.2
+            border.color: root.stateColor
+            opacity: root.orbState === "processing" ? 0.8 : 0.45
 
             RotationAnimation on rotation {
                 running: true
                 loops: Animation.Infinite
+                from: 0; to: 360
+                duration: 16000
+                easing.type: Easing.Linear
+            }
+        }
 
-                from: 0
-                to: 360
+        // ============================================================
+        // SECCIÓN 9: ANILLO INTERNO DENTRO DE LA ESTRUCTURA
+        // ============================================================
+        Rectangle {
+            id: innerRing
+            anchors.centerIn: parent
+            width: parent.width * 0.66
+            height: parent.height * 0.66
+            radius: width / 2
+            color: "transparent"
+            border.width: 1.8
+            border.color: root.stateColor
+            opacity: 0.6
 
-                duration:
-                    root.orbState === "processing" ? 4200 :
-                    root.orbState === "listening" ? 8000 :
-                    root.orbState === "responding" ? 6500 :
-                    15000
+            SequentialAnimation on scale {
+                running: true
+                loops: Animation.Infinite
+                NumberAnimation { from: 0.96; to: 1.04; duration: root.orbState === "processing" ? 900 : 2200; easing.type: Easing.InOutSine }
+                NumberAnimation { from: 1.04; to: 0.96; duration: root.orbState === "processing" ? 900 : 2200; easing.type: Easing.InOutSine }
+            }
+        }
 
+        // ============================================================
+        // SECCIÓN 10: SISTEMA DE PARTÍCULAS ORBITALES Y ENERGÍA
+        // ============================================================
+        Item {
+            id: energyParticles
+            anchors.centerIn: parent
+            width: parent.width * 0.72
+            height: parent.height * 0.72
+
+            RotationAnimation on rotation {
+                running: true
+                loops: Animation.Infinite
+                from: 0; to: 360
+                duration: root.orbState === "processing" ? 3500 : 11000
                 easing.type: Easing.Linear
             }
 
             Repeater {
                 model: 8
-
                 Rectangle {
-                    width:
-                        (index % 3 === 0 ? 5 : 3)
-                        * root.orbScale
-
+                    required property int index
+                    width: (index % 3 === 0 ? 5 : 3) * root.orbScale
                     height: width
-
                     radius: width / 2
-
                     color: root.stateColor
+                    opacity: index % 2 === 0 ? 0.85 : 0.50
 
-                    opacity:
-                        index % 3 === 0 ? 0.80 : 0.48
-
-                    x: {
-                        var angle =
-                            (index / 8.0) * Math.PI * 2
-
-                        var radius =
-                            parent.width *
-                            (index % 2 === 0 ? 0.39 : 0.33)
-
-                        return (
-                            parent.width / 2 +
-                            Math.cos(angle) * radius -
-                            width / 2
-                        )
-                    }
-
-                    y: {
-                        var angle =
-                            (index / 8.0) * Math.PI * 2
-
-                        var radius =
-                            parent.height *
-                            (index % 2 === 0 ? 0.39 : 0.33)
-
-                        return (
-                            parent.height / 2 +
-                            Math.sin(angle) * radius -
-                            height / 2
-                        )
-                    }
-
-                    scale: 1.0
+                    x: (parent.width / 2) + Math.cos((index / 8.0) * Math.PI * 2) * (parent.width * 0.4) - width / 2
+                    y: (parent.height / 2) + Math.sin((index / 8.0) * Math.PI * 2) * (parent.height * 0.4) - height / 2
 
                     SequentialAnimation on scale {
                         running: true
                         loops: Animation.Infinite
-
-                        PauseAnimation {
-                            duration: index * 110
-                        }
-
-                        NumberAnimation {
-                            from: 0.65
-                            to:
-                                root.orbState === "processing"
-                                    ? 1.45
-                                    : 1.15
-
-                            duration:
-                                root.orbState === "processing"
-                                    ? 450
-                                    : 900
-
-                            easing.type: Easing.InOutSine
-                        }
-
-                        NumberAnimation {
-                            from:
-                                root.orbState === "processing"
-                                    ? 1.45
-                                    : 1.15
-                            to: 0.65
-
-                            duration:
-                                root.orbState === "processing"
-                                    ? 450
-                                    : 900
-
-                            easing.type: Easing.InOutSine
-                        }
+                        PauseAnimation { duration: index * 100 }
+                        NumberAnimation { from: 0.7; to: root.orbState === "processing" ? 1.4 : 1.1; duration: 600; easing.type: Easing.InOutSine }
+                        NumberAnimation { from: root.orbState === "processing" ? 1.4 : 1.1; to: 0.7; duration: 600; easing.type: Easing.InOutSine }
                     }
                 }
             }
         }
 
         // ============================================================
-        // 5. ANILLO EXTERIOR
+        // SECCIÓN 11: ENERGÍA CURVA SUPERIOR
         // ============================================================
-
-        Rectangle {
-            id: outerRing
-
-            anchors.centerIn: parent
-
-            width: parent.width * 0.80
-            height: parent.height * 0.80
-
-            radius: width / 2
-
-            color: "transparent"
-
-            border.width: 1.4
-            border.color: root.stateColor
-
-            opacity:
-                root.orbState === "idle" ? 0.45 :
-                root.orbState === "processing" ? 0.78 :
-                0.62
-
-            RotationAnimation on rotation {
-                running: true
-                loops: Animation.Infinite
-
-                from: 360
-                to: 0
-
-                duration: 15000
-
-                easing.type: Easing.Linear
-            }
-        }
-
-        // ============================================================
-        // 6. ANILLO INTERNO
-        // ============================================================
-
-        Rectangle {
-            id: innerRing
-
-            anchors.centerIn: parent
-
-            width: parent.width * 0.70
-            height: parent.height * 0.70
-
-            radius: width / 2
-
-            color: "transparent"
-
-            border.width: 2
-            border.color: root.stateColor
-
-            opacity:
-                root.orbState === "idle" ? 0.30 :
-                root.orbState === "listening" ? 0.58 :
-                root.orbState === "processing" ? 0.65 :
-                root.orbState === "responding" ? 0.58 :
-                0.72
-
-            scale: 1.0
-
-            SequentialAnimation on scale {
-                running: true
-                loops: Animation.Infinite
-
-                NumberAnimation {
-                    from: 0.965
-                    to: 1.035
-                    duration:
-                        root.orbState === "processing"
-                            ? 1000
-                            : 2600
-
-                    easing.type: Easing.InOutSine
-                }
-
-                NumberAnimation {
-                    from: 1.035
-                    to: 0.965
-                    duration:
-                        root.orbState === "processing"
-                            ? 1000
-                            : 2600
-
-                    easing.type: Easing.InOutSine
-                }
-            }
-        }
-
-        // ============================================================
-        // 7. ENERGÍA LATERAL IZQUIERDA
-        // ============================================================
-
         Shape {
-            id: leftEnergy
-
+            id: topEnergy
             anchors.centerIn: parent
-
-            width: parent.width * 0.92
-            height: parent.height * 0.56
-
+            width: parent.width * 0.8
+            height: parent.height * 0.8
             antialiasing: true
-            preferredRendererType: Shape.CurveRenderer
-
-            opacity:
-                root.orbState === "listening" ? 0.92 :
-                root.orbState === "responding" ? 0.72 :
-                root.orbState === "processing" ? 0.40 :
-                0.10
 
             ShapePath {
-                property real waveMotion: 0.0
-
                 fillColor: "transparent"
-
                 strokeColor: root.stateColor
+                strokeWidth: 1.5
                 capStyle: ShapePath.RoundCap
 
-                NumberAnimation on waveMotion {
-                    running:
-                        root.orbState === "listening" ||
-                        root.orbState === "responding"
-
-                    loops: Animation.Infinite
-                    from: 0.0
-                    to: Math.PI * 2
-
-                    duration:
-                        root.orbState === "listening"
-                            ? 1150
-                            : 1650
-
-                    easing.type: Easing.InOutSine
-                }
-
-                strokeWidth:
-                    root.orbState === "listening"
-                        ? 2.0
-                        : 1.2
-
-                startX: leftEnergy.width * 0.05
-                startY: leftEnergy.height * 0.50
+                startX: topEnergy.width * 0.25
+                startY: topEnergy.height * 0.25
 
                 PathCubic {
-                    x: leftEnergy.width * 0.43
-                    y: leftEnergy.height * 0.50
-
-                    control1X: leftEnergy.width * 0.17
-                    control1Y: leftEnergy.height * (0.20 + Math.sin(parent.waveMotion) * 0.08)
-
-                    control2X: leftEnergy.width * 0.30
-                    control2Y: leftEnergy.height * (0.80 - Math.sin(parent.waveMotion) * 0.08)
-                }
-            }
-
-            SequentialAnimation on scale {
-                running:
-                    root.orbState === "listening" ||
-                    root.orbState === "responding"
-
-                loops: Animation.Infinite
-
-                NumberAnimation {
-                    from: 0.94
-                    to: 1.08
-                    duration: 700
-                    easing.type: Easing.InOutSine
-                }
-
-                NumberAnimation {
-                    from: 1.08
-                    to: 0.94
-                    duration: 700
-                    easing.type: Easing.InOutSine
+                    x: topEnergy.width * 0.75
+                    y: topEnergy.height * 0.25
+                    control1X: topEnergy.width * 0.4
+                    control1Y: topEnergy.height * 0.1
+                    control2X: topEnergy.width * 0.6
+                    control2Y: topEnergy.height * 0.1
                 }
             }
         }
 
         // ============================================================
-        // 8. ENERGÍA LATERAL DERECHA
+        // SECCIÓN 12: ENERGÍA CURVA INFERIOR
         // ============================================================
-
         Shape {
-            id: rightEnergy
-
+            id: bottomEnergy
             anchors.centerIn: parent
-
-            width: parent.width * 0.92
-            height: parent.height * 0.56
-
+            width: parent.width * 0.8
+            height: parent.height * 0.8
             antialiasing: true
-            preferredRendererType: Shape.CurveRenderer
-
-            opacity:
-                root.orbState === "listening" ? 0.88 :
-                root.orbState === "responding" ? 0.94 :
-                root.orbState === "processing" ? 0.42 :
-                0.08
 
             ShapePath {
-                property real waveMotion: 0.0
-
                 fillColor: "transparent"
-
                 strokeColor: root.stateColor
+                strokeWidth: 1.5
                 capStyle: ShapePath.RoundCap
 
-                NumberAnimation on waveMotion {
-                    running:
-                        root.orbState === "listening" ||
-                        root.orbState === "responding"
-
-                    loops: Animation.Infinite
-                    from: Math.PI
-                    to: Math.PI * 3
-
-                    duration:
-                        root.orbState === "listening"
-                            ? 1250
-                            : 1500
-
-                    easing.type: Easing.InOutSine
-                }
-
-                strokeWidth:
-                    root.orbState === "responding"
-                        ? 2.0
-                        : 1.15
-
-                startX: rightEnergy.width * 0.95
-                startY: rightEnergy.height * 0.50
+                startX: bottomEnergy.width * 0.25
+                startY: bottomEnergy.height * 0.75
 
                 PathCubic {
-                    x: rightEnergy.width * 0.57
-                    y: rightEnergy.height * 0.50
-
-                    control1X: rightEnergy.width * 0.83
-                    control1Y: rightEnergy.height * (0.80 - Math.sin(parent.waveMotion) * 0.08)
-
-                    control2X: rightEnergy.width * 0.70
-                    control2Y: rightEnergy.height * (0.20 + Math.sin(parent.waveMotion) * 0.08)
-                }
-            }
-
-            SequentialAnimation on scale {
-                running:
-                    root.orbState === "listening" ||
-                    root.orbState === "responding"
-
-                loops: Animation.Infinite
-
-                NumberAnimation {
-                    from: 0.95
-                    to: 1.10
-                    duration: 820
-                    easing.type: Easing.InOutSine
-                }
-
-                NumberAnimation {
-                    from: 1.10
-                    to: 0.95
-                    duration: 820
-                    easing.type: Easing.InOutSine
+                    x: bottomEnergy.width * 0.75
+                    y: bottomEnergy.height * 0.75
+                    control1X: bottomEnergy.width * 0.4
+                    control1Y: bottomEnergy.height * 0.9
+                    control2X: bottomEnergy.width * 0.6
+                    control2Y: bottomEnergy.height * 0.9
                 }
             }
         }
 
         // ============================================================
-        // 9. CAPA ORGÁNICA
+        // SECCIÓN 13: RESPLANDOR EXTERIOR DEL NÚCLEO
         // ============================================================
-
         Rectangle {
-            id: organicLayer
-
+            id: coreOuterGlow
             anchors.centerIn: parent
-
-            width: parent.width * 0.59
-            height: parent.height * 0.59
-
+            width: parent.width * 0.45
+            height: parent.height * 0.45
             radius: width / 2
-
             color: root.stateColor
-
-            opacity:
-                root.orbState === "idle" ? 0.075 :
-                root.orbState === "listening" ? 0.12 :
-                root.orbState === "processing" ? 0.16 :
-                root.orbState === "responding" ? 0.13 :
-                0.16
-
-            border.width: 2
-            border.color: root.stateColor
-
-            rotation: 0
-
-            SequentialAnimation on rotation {
-                running: true
-                loops: Animation.Infinite
-
-                NumberAnimation {
-                    from: -8
-                    to: 8
-
-                    duration:
-                        root.orbState === "processing"
-                            ? 1300
-                            : 3200
-
-                    easing.type: Easing.InOutSine
-                }
-
-                NumberAnimation {
-                    from: 8
-                    to: -8
-
-                    duration:
-                        root.orbState === "processing"
-                            ? 1300
-                            : 3200
-
-                    easing.type: Easing.InOutSine
-                }
-            }
-        }
-
-        // ============================================================
-        // 10. SEGUNDA CAPA ORGÁNICA
-        // ============================================================
-
-        Rectangle {
-            id: organicInner
-
-            anchors.centerIn: parent
-
-            width: parent.width * 0.51
-            height: parent.height * 0.51
-
-            radius: width / 2
-
-            color: root.stateColor
-
-            opacity:
-                root.orbState === "idle" ? 0.06 :
-                root.orbState === "processing" ? 0.13 :
-                0.10
-
-            scale: 1.0
+            opacity: 0.35
 
             SequentialAnimation on scale {
                 running: true
                 loops: Animation.Infinite
-
-                NumberAnimation {
-                    from: 0.94
-                    to: 1.06
-
-                    duration:
-                        root.orbState === "processing"
-                            ? 800
-                            : 2100
-
-                    easing.type: Easing.InOutSine
-                }
-
-                NumberAnimation {
-                    from: 1.06
-                    to: 0.94
-
-                    duration:
-                        root.orbState === "processing"
-                            ? 800
-                            : 2100
-
-                    easing.type: Easing.InOutSine
-                }
+                NumberAnimation { from: 0.88; to: 1.15; duration: 1100; easing.type: Easing.InOutSine }
+                NumberAnimation { from: 1.15; to: 0.88; duration: 1100; easing.type: Easing.InOutSine }
             }
         }
 
         // ============================================================
-        // 11. NÚCLEO OSCURO
+        // SECCIÓN 14: HALO LUMINOSO INTERMEDIO DEL NÚCLEO
         // ============================================================
-
         Rectangle {
-            id: coreShell
-
+            id: coreMidHalo
             anchors.centerIn: parent
-
-            width: parent.width * 0.43
-            height: parent.height * 0.43
-
+            width: parent.width * 0.32
+            height: parent.height * 0.32
             radius: width / 2
-
-            color: "#081021"
-
-            border.width: 1.8
-            border.color: root.stateColor
-
-            opacity: 0.98
-
-            scale:
-                root.orbState === "processing"
-                    ? 1.04
-                    : 1.0
-
-            Behavior on scale {
-                NumberAnimation {
-                    duration: 500
-                    easing.type: Easing.OutCubic
-                }
-            }
-        }
-
-        // ============================================================
-        // 12. REFLEJO INTERNO
-        // ============================================================
-
-        Rectangle {
-            id: innerReflection
-
-            anchors.centerIn: parent
-
-            width: parent.width * 0.34
-            height: parent.height * 0.34
-
-            radius: width / 2
-
             color: root.stateColor
-
-            opacity:
-                root.orbState === "idle" ? 0.24 :
-                root.orbState === "listening" ? 0.38 :
-                root.orbState === "processing" ? 0.48 :
-                root.orbState === "responding" ? 0.42 :
-                0.48
-
-            scale: 1.0
-
-            SequentialAnimation on scale {
-                running: true
-                loops: Animation.Infinite
-
-                NumberAnimation {
-                    from: 0.90
-                    to: 1.10
-
-                    duration:
-                        root.orbState === "processing"
-                            ? 700
-                            : 1900
-
-                    easing.type: Easing.InOutSine
-                }
-
-                NumberAnimation {
-                    from: 1.10
-                    to: 0.90
-
-                    duration:
-                        root.orbState === "processing"
-                            ? 700
-                            : 1900
-
-                    easing.type: Easing.InOutSine
-                }
-            }
+            opacity: 0.65
         }
 
         // ============================================================
-        // 13. ENERGÍA CENTRAL
+        // SECCIÓN 15: BRANQUIAS Y RESPLANDOR INTENSO CENTRAL
         // ============================================================
-
         Rectangle {
-            id: innerEnergy
-
+            id: coreGlowIntense
             anchors.centerIn: parent
-
-            width: parent.width * 0.255
-            height: parent.height * 0.255
-
+            width: parent.width * 0.22
+            height: parent.height * 0.22
             radius: width / 2
-
-            color: root.stateColor
-
-            opacity:
-                root.orbState === "idle" ? 0.58 :
-                root.orbState === "listening" ? 0.86 :
-                root.orbState === "processing" ? 0.88 :
-                root.orbState === "responding" ? 0.82 :
-                0.90
-
-            scale: 1.0
-
-            SequentialAnimation on scale {
-                running: true
-                loops: Animation.Infinite
-
-                NumberAnimation {
-                    from: 0.91
-                    to: 1.09
-
-                    duration:
-                        root.orbState === "processing"
-                            ? 600
-                            : 1500
-
-                    easing.type: Easing.InOutSine
-                }
-
-                NumberAnimation {
-                    from: 1.09
-                    to: 0.91
-
-                    duration:
-                        root.orbState === "processing"
-                            ? 600
-                            : 1500
-
-                    easing.type: Easing.InOutSine
-                }
-            }
-        }
-
-        // ============================================================
-        // 14. NÚCLEO LUMINOSO
-        // ============================================================
-
-        Rectangle {
-            id: luminousCore
-
-            anchors.centerIn: parent
-
-            width: parent.width * 0.17
-            height: parent.height * 0.17
-
-            radius: width / 2
-
             color: root.coreColor
+            border.color: root.stateColor
+            border.width: 2.5
 
-            opacity:
-                root.orbState === "error"
-                    ? 0.92
-                    : 0.98
-
-            scale: 1.0
-
-            SequentialAnimation on scale {
-                running: true
+            SequentialAnimation on opacity {
+                running: root.orbState === "listening" || root.orbState === "processing"
                 loops: Animation.Infinite
-
-                NumberAnimation {
-                    from: 0.91
-                    to: 1.09
-
-                    duration:
-                        root.orbState === "processing"
-                            ? 550
-                            : 1400
-
-                    easing.type: Easing.InOutSine
-                }
-
-                NumberAnimation {
-                    from: 1.09
-                    to: 0.91
-
-                    duration:
-                        root.orbState === "processing"
-                            ? 550
-                            : 1400
-
-                    easing.type: Easing.InOutSine
-                }
+                NumberAnimation { from: 0.8; to: 1.0; duration: 300 }
+                NumberAnimation { from: 1.0; to: 0.8; duration: 300 }
             }
         }
 
         // ============================================================
-        // 15. PUNTO CENTRAL
+        // SECCIÓN 16: PUNTO BLANCO CENTRAL RADIANTE (NÚCLEO FINAL)
         // ============================================================
-
         Rectangle {
-            id: corePoint
-
+            id: coreCenterDot
             anchors.centerIn: parent
-
-            width: parent.width * 0.065
-            height: parent.height * 0.065
-
+            width: parent.width * 0.12
+            height: parent.height * 0.12
             radius: width / 2
+            color: root.coreColor
+            visible: root.orbState !== "error"
+        }
 
-            color: "white"
+        // ============================================================
+        // SECCIÓN 17: ÍCONO TRIANGULAR DE ALERTA (ESTADO ERROR)
+        // ============================================================
+        Item {
+            id: errorTriangle
+            anchors.centerIn: parent
+            width: parent.width * 0.32
+            height: parent.height * 0.32
+            visible: root.orbState === "error"
 
-            opacity: 1.0
+            Shape {
+                anchors.fill: parent
+                antialiasing: true
 
-            scale:
-                root.orbState === "processing"
-                    ? 1.18
-                    : 1.0
+                ShapePath {
+                    fillColor: "transparent"
+                    strokeColor: "#FFFFFF"
+                    strokeWidth: 2.5
+                    capStyle: ShapePath.RoundCap
+                    joinStyle: ShapePath.MiterJoin
 
-            Behavior on scale {
-                NumberAnimation {
-                    duration: 350
-                    easing.type: Easing.OutCubic
+                    startX: errorTriangle.width * 0.5
+                    startY: errorTriangle.height * 0.12
+                    PathLine { x: errorTriangle.width * 0.88; y: errorTriangle.height * 0.85 }
+                    PathLine { x: errorTriangle.width * 0.12; y: errorTriangle.height * 0.85 }
+                    PathLine { x: errorTriangle.width * 0.5;  y: errorTriangle.height * 0.12 }
+                }
+
+                // Signo de exclamación (Línea)
+                ShapePath {
+                    fillColor: "#FFFFFF"
+                    strokeColor: "#FFFFFF"
+                    strokeWidth: 2.2
+                    capStyle: ShapePath.RoundCap
+
+                    startX: errorTriangle.width * 0.5
+                    startY: errorTriangle.height * 0.38
+                    PathLine { x: errorTriangle.width * 0.5; y: errorTriangle.height * 0.60 }
+                }
+
+                // Signo de exclamación (Punto)
+                ShapePath {
+                    fillColor: "#FFFFFF"
+                    strokeColor: "#FFFFFF"
+                    strokeWidth: 2.5
+
+                    startX: errorTriangle.width * 0.5
+                    startY: errorTriangle.height * 0.71
+                    PathLine { x: errorTriangle.width * 0.5; y: errorTriangle.height * 0.73 }
                 }
             }
-        }
 
-        // ============================================================
-        // 16. BRILLO CENTRAL SUPERIOR
-        // ============================================================
-
-        Rectangle {
-            id: coreHighlight
-
-            anchors.centerIn: parent
-
-            anchors.verticalCenterOffset:
-                -parent.height * 0.035
-
-            width: parent.width * 0.055
-            height: parent.height * 0.028
-
-            radius: height / 2
-
-            color: "white"
-
-            opacity: 0.72
-
-            rotation: -18
-        }
-
-        // ============================================================
-        // 17. ERROR — ANILLO DE ALERTA
-        // ============================================================
-
-        Rectangle {
-            id: errorRing
-
-            anchors.centerIn: parent
-
-            width: parent.width * 0.76
-            height: parent.height * 0.76
-
-            radius: width / 2
-
-            color: "transparent"
-
-            border.width: 2
-            border.color: "#EF4444"
-
-            opacity:
-                root.orbState === "error"
-                    ? 0.90
-                    : 0.0
-
-            scale:
-                root.orbState === "error"
-                    ? 1.0
-                    : 0.88
-
+            // Parpadeo intermitente de alerta
             SequentialAnimation on opacity {
                 running: root.orbState === "error"
                 loops: Animation.Infinite
-
-                NumberAnimation {
-                    from: 0.35
-                    to: 0.95
-                    duration: 500
-                    easing.type: Easing.InOutSine
-                }
-
-                NumberAnimation {
-                    from: 0.95
-                    to: 0.35
-                    duration: 500
-                    easing.type: Easing.InOutSine
-                }
+                NumberAnimation { from: 1.0; to: 0.3; duration: 350 }
+                NumberAnimation { from: 0.3; to: 1.0; duration: 350 }
             }
         }
-    }
 
-    // ============================================================
-    // 18. INDICADOR DE ERROR
-    // ============================================================
-
-    Text {
-        id: errorIndicator
-
-        anchors.centerIn: parent
-
-        text: "!"
-        visible: root.orbState === "error"
-
-        color: "#FFFFFF"
-
-        font.family: "Segoe UI"
-        font.bold: true
-        font.pixelSize: 34 * root.orbScale
-
-        opacity: 0.95
-
-        scale: 1.0
-
-        SequentialAnimation on scale {
+        // ============================================================
+        // SECCIÓN 18: CAPA FINAL DE DESTELLO Y VIBRACIÓN DE ESTADO
+        // ============================================================
+        SequentialAnimation on x {
             running: root.orbState === "error"
             loops: Animation.Infinite
-
-            NumberAnimation {
-                from: 0.90
-                to: 1.12
-                duration: 500
-                easing.type: Easing.InOutSine
-            }
-
-            NumberAnimation {
-                from: 1.12
-                to: 0.90
-                duration: 500
-                easing.type: Easing.InOutSine
-            }
-        }
-    }
-
-    // ================================================================
-    // TRANSICIÓN DE COLOR
-    // ================================================================
-
-    Behavior on stateColor {
-        ColorAnimation {
-            duration: 450
-            easing.type: Easing.InOutCubic
+            NumberAnimation { from: -2; to: 2; duration: 50 }
+            NumberAnimation { from: 2; to: -2; duration: 50 }
+            NumberAnimation { from: -2; to: 0; duration: 50 }
+            PauseAnimation { duration: 400 }
         }
     }
 }
-
-
-

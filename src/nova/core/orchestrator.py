@@ -79,8 +79,6 @@ class CoreOrchestrator:
         try:
             return handler(command)
         except Exception as exc:
-            self._state = NovaState.ERROR
-
             return Result.fail(
                 code="COMMAND_EXECUTION_ERROR",
                 message=str(exc),
