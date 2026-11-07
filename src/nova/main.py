@@ -2,7 +2,10 @@ from pathlib import Path
 
 from nova.config import ConfigurationService
 from nova.core import ConnectivityState, CoreOrchestrator, NovaState
+from nova.core.logging_setup import get_logger, setup_logging
 from nova.storage import StorageService
+
+logger = get_logger(__name__)
 
 
 def create_configuration() -> ConfigurationService:
@@ -37,12 +40,23 @@ def main() -> None:
     configuration = create_configuration()
     config = configuration.initialize()
 
+    setup_logging(
+        Path(config.paths.logs),
+        debug=config.execution.debug,
+    )
+    logger.info(
+        "NOVA %s iniciando (entorno: %s).",
+        config.nova.version,
+        config.nova.environment,
+    )
+
     core = create_core()
 
     storage = create_storage()
 
     try:
         storage.initialize()
+        logger.info("Almacenamiento inicializado.")
 
         print(f"Configuración: {config.nova.name} {config.nova.version}")
         print(f"Estado: {core.state.value}")
@@ -50,6 +64,7 @@ def main() -> None:
         print("Almacenamiento: SQLite operativo")
 
     except Exception:
+        logger.exception("Fallo durante el arranque de NOVA.")
         storage.close()
         raise
 

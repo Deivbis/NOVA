@@ -3,9 +3,12 @@ from typing import Any
 
 from nova.core.commands import Command
 from nova.core.events import Event
+from nova.core.logging_setup import get_logger
 from nova.core.result import Result
 from nova.core.services import CommandHandler
 from nova.core.state import ConnectivityState, NovaState
+
+logger = get_logger(__name__)
 
 
 class CoreOrchestrator:
@@ -24,12 +27,22 @@ class CoreOrchestrator:
         return self._connectivity
 
     def set_state(self, state: NovaState) -> None:
+        logger.debug(
+            "Estado: %s -> %s",
+            self._state.value,
+            state.value,
+        )
         self._state = state
 
     def set_connectivity(
         self,
         connectivity: ConnectivityState,
     ) -> None:
+        logger.debug(
+            "Conectividad: %s -> %s",
+            self._connectivity.value,
+            connectivity.value,
+        )
         self._connectivity = connectivity
 
     def register_command(
@@ -53,10 +66,25 @@ class CoreOrchestrator:
         self,
         command: Command,
     ) -> Result[Any]:
+        # Privacidad (SPEC-014 §9): se registra el nombre del comando,
+        # nunca su payload.
+        logger.debug(
+            "Comando recibido: %s (id=%s, origen=%s)",
+            command.name,
+            command.command_id,
+            command.source,
+        )
+
         if (
             command.requires_internet
             and self._connectivity != ConnectivityState.ONLINE
         ):
+            logger.warning(
+                "Comando '%s' rechazado: requiere Internet "
+                "(conectividad: %s).",
+                command.name,
+                self._connectivity.value,
+            )
             return Result.fail(
                 code="INTERNET_REQUIRED",
                 message=(
@@ -68,6 +96,10 @@ class CoreOrchestrator:
         handler = self._handlers.get(command.name)
 
         if handler is None:
+            logger.warning(
+                "Comando '%s' sin controlador registrado.",
+                command.name,
+            )
             return Result.fail(
                 code="COMMAND_NOT_FOUND",
                 message=(
@@ -77,9 +109,20 @@ class CoreOrchestrator:
             )
 
         try:
-            return handler(command)
+            result = handler(command)
         except Exception as exc:
+            logger.exception(
+                "Error ejecutando el comando '%s'.",
+                command.name,
+            )
             return Result.fail(
                 code="COMMAND_EXECUTION_ERROR",
                 message=str(exc),
             )
+
+        logger.debug(
+            "Comando '%s' terminado (éxito=%s).",
+            command.name,
+            result.success,
+        )
+        return result
