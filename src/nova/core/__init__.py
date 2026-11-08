@@ -4,7 +4,8 @@ from nova.core.conversation import (
     ConversationMessage,
     MessageRole,
 )
-from nova.core.events import Event
+from nova.core.event_bus import EventBus
+from nova.core.events import Event, EventNames
 from nova.core.orchestrator import CoreOrchestrator
 from nova.core.requests import QueuedRequest, RequestStatus
 from nova.core.result import Failure, Result
@@ -20,6 +21,8 @@ __all__ = [
     "ConversationMessage",
     "MessageRole",
     "Event",
+    "EventBus",
+    "EventNames",
     "CoreOrchestrator",
     "QueuedRequest",
     "RequestStatus",

@@ -1,8 +1,8 @@
-from collections.abc import Callable
 from typing import Any
 
 from nova.core.commands import Command
-from nova.core.events import Event
+from nova.core.event_bus import EventBus, EventListener, Unsubscribe
+from nova.core.events import Event, EventNames
 from nova.core.logging_setup import get_logger
 from nova.core.result import Result
 from nova.core.services import CommandHandler
@@ -16,7 +16,7 @@ class CoreOrchestrator:
         self._state = NovaState.STARTING
         self._connectivity = ConnectivityState.UNKNOWN
         self._handlers: dict[str, CommandHandler] = {}
-        self._event_listeners: list[Callable[[Event], None]] = []
+        self._event_bus = EventBus()
 
     @property
     def state(self) -> NovaState:
@@ -26,13 +26,33 @@ class CoreOrchestrator:
     def connectivity(self) -> ConnectivityState:
         return self._connectivity
 
+    @property
+    def event_bus(self) -> EventBus:
+        return self._event_bus
+
     def set_state(self, state: NovaState) -> None:
+        previous = self._state
+
+        if state == previous:
+            return
+
         logger.debug(
             "Estado: %s -> %s",
-            self._state.value,
+            previous.value,
             state.value,
         )
         self._state = state
+
+        self._event_bus.publish(
+            Event(
+                name=EventNames.STATE_CHANGED,
+                payload={
+                    "previous": previous.value,
+                    "current": state.value,
+                },
+                source="core",
+            )
+        )
 
     def set_connectivity(
         self,
@@ -54,15 +74,24 @@ class CoreOrchestrator:
 
     def subscribe(
         self,
-        listener: Callable[[Event], None],
-    ) -> None:
-        self._event_listeners.append(listener)
+        listener: EventListener,
+        event_name: str | None = None,
+    ) -> Unsubscribe:
+        return self._event_bus.subscribe(listener, event_name)
 
     def publish(self, event: Event) -> None:
-        for listener in self._event_listeners:
-            listener(event)
+        self._event_bus.publish(event)
 
     def dispatch(
+        self,
+        command: Command,
+    ) -> Result[Any]:
+        result = self._execute(command)
+        self._publish_command_result(command, result)
+
+        return result
+
+    def _execute(
         self,
         command: Command,
     ) -> Result[Any]:
@@ -126,3 +155,28 @@ class CoreOrchestrator:
             result.success,
         )
         return result
+
+    def _publish_command_result(
+        self,
+        command: Command,
+        result: Result[Any],
+    ) -> None:
+        # Solo metadatos: nunca el payload ni el contenido del resultado.
+        self._event_bus.publish(
+            Event(
+                name=(
+                    EventNames.COMMAND_COMPLETED
+                    if result.success
+                    else EventNames.COMMAND_FAILED
+                ),
+                payload={
+                    "command": command.name,
+                    "command_id": str(command.command_id),
+                    "success": result.success,
+                    "error_code": (
+                        result.error.code if result.error else None
+                    ),
+                },
+                source="core",
+            )
+        )
