@@ -350,7 +350,7 @@ class NovaUiBridge(QObject):
             self._requests_by_conversation[conversation_id] = remaining
 
         if request.status == RequestStatus.COMPLETED:
-            self._orchestrator.set_state(NovaState.RESPONDING)
+            self._orchestrator.set_state(NovaState.SPEAKING)
 
     @Slot()
     def _on_worker_thread_finished(self) -> None:

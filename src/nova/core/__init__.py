@@ -14,6 +14,7 @@ from nova.core.state import (
     NovaState,
     OrbState,
 )
+from nova.core.state_manager import StateManager
 
 __all__ = [
     "Command",
@@ -31,4 +32,5 @@ __all__ = [
     "ConnectivityState",
     "NovaState",
     "OrbState",
+    "StateManager",
 ]

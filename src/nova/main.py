@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from nova.config import ConfigurationService
-from nova.core import ConnectivityState, CoreOrchestrator, NovaState
+from nova.core import ConnectivityState, CoreOrchestrator
 from nova.core.logging_setup import get_logger, setup_logging
 from nova.storage import StorageService
 
@@ -19,7 +19,7 @@ def create_core() -> CoreOrchestrator:
     """Create and initialize the NOVA core."""
     core = CoreOrchestrator()
 
-    core.set_state(NovaState.IDLE)
+    core.start()
     core.set_connectivity(ConnectivityState.UNKNOWN)
 
     return core
@@ -70,6 +70,7 @@ def main() -> None:
 
     finally:
         storage.close()
+        core.stop()
 
 
 if __name__ == "__main__":

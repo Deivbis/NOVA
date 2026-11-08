@@ -14,7 +14,7 @@ STATES = [
     NovaState.IDLE,
     NovaState.LISTENING,
     NovaState.PROCESSING,
-    NovaState.RESPONDING,
+    NovaState.SPEAKING,
     NovaState.ERROR,
 ]
 

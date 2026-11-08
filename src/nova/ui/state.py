@@ -33,7 +33,9 @@ class UIState:
             NovaState.IDLE: OrbState.IDLE,
             NovaState.LISTENING: OrbState.LISTENING,
             NovaState.PROCESSING: OrbState.PROCESSING,
-            NovaState.RESPONDING: OrbState.RESPONDING,
+            NovaState.THINKING: OrbState.PROCESSING,
+            NovaState.EXECUTING: OrbState.PROCESSING,
+            NovaState.SPEAKING: OrbState.RESPONDING,
             NovaState.ERROR: OrbState.ERROR,
         }
 

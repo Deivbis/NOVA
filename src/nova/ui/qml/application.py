@@ -44,6 +44,7 @@ def main() -> int:
             storage_service.initialize()
 
             orchestrator = CoreOrchestrator()
+            orchestrator.start()
 
             local_ai_service = LocalAIService()
 

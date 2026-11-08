@@ -22,3 +22,5 @@ class EventNames:
     COMMAND_COMPLETED = "command.completed"
     COMMAND_FAILED = "command.failed"
     STATE_CHANGED = "state.changed"
+    CORE_STARTED = "core.started"
+    CORE_STOPPED = "core.stopped"

@@ -7,20 +7,21 @@ from nova.core.logging_setup import get_logger
 from nova.core.result import Result
 from nova.core.services import CommandHandler
 from nova.core.state import ConnectivityState, NovaState
+from nova.core.state_manager import StateManager
 
 logger = get_logger(__name__)
 
 
 class CoreOrchestrator:
     def __init__(self) -> None:
-        self._state = NovaState.STARTING
+        self._state_manager = StateManager()
         self._connectivity = ConnectivityState.UNKNOWN
         self._handlers: dict[str, CommandHandler] = {}
         self._event_bus = EventBus()
 
     @property
     def state(self) -> NovaState:
-        return self._state
+        return self._state_manager.state
 
     @property
     def connectivity(self) -> ConnectivityState:
@@ -30,18 +31,57 @@ class CoreOrchestrator:
     def event_bus(self) -> EventBus:
         return self._event_bus
 
-    def set_state(self, state: NovaState) -> None:
-        previous = self._state
+    def start(self) -> bool:
+        """Inicia el Core: STARTING -> IDLE. Devuelve False si ya inició."""
+        if self.state != NovaState.STARTING:
+            logger.warning(
+                "start() ignorado: el Core ya está en estado '%s'.",
+                self.state.value,
+            )
+            return False
+
+        self.set_state(NovaState.IDLE)
+        self._event_bus.publish(
+            Event(name=EventNames.CORE_STARTED, source="core")
+        )
+        logger.info("Core iniciado.")
+
+        return True
+
+    def stop(self) -> bool:
+        """Detiene el Core: -> STOPPING -> STOPPED. Es seguro repetirlo."""
+        if self.state in (NovaState.STOPPING, NovaState.STOPPED):
+            return False
+
+        self.set_state(NovaState.STOPPING)
+        self.set_state(NovaState.STOPPED)
+        self._event_bus.publish(
+            Event(name=EventNames.CORE_STOPPED, source="core")
+        )
+        logger.info("Core detenido.")
+
+        return True
+
+    def set_state(self, state: NovaState) -> bool:
+        """Cambia el estado. Devuelve False si la transición no es válida."""
+        previous = self.state
+
+        if not self._state_manager.transition_to(state):
+            logger.warning(
+                "Transición de estado no permitida: %s -> %s",
+                previous.value,
+                state.value,
+            )
+            return False
 
         if state == previous:
-            return
+            return True
 
         logger.debug(
             "Estado: %s -> %s",
             previous.value,
             state.value,
         )
-        self._state = state
 
         self._event_bus.publish(
             Event(
@@ -53,6 +93,8 @@ class CoreOrchestrator:
                 source="core",
             )
         )
+
+        return True
 
     def set_connectivity(
         self,
