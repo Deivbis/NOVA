@@ -1,5 +1,6 @@
 from typing import Any
-
+from nova.core.capabilities import Availability
+from nova.core.capability_manager import CapabilityManager
 from nova.core.commands import Command
 from nova.core.event_bus import EventBus, EventListener, Unsubscribe
 from nova.core.events import Event, EventNames
@@ -18,6 +19,7 @@ class CoreOrchestrator:
         self._connectivity = ConnectivityState.UNKNOWN
         self._handlers: dict[str, CommandHandler] = {}
         self._event_bus = EventBus()
+        self._capabilities = CapabilityManager()
 
     @property
     def state(self) -> NovaState:
@@ -30,6 +32,20 @@ class CoreOrchestrator:
     @property
     def event_bus(self) -> EventBus:
         return self._event_bus
+
+    @property
+    def capabilities(self) -> CapabilityManager:
+        return self._capabilities
+
+    def capability_availability(
+        self,
+        capability_id: str,
+    ) -> Availability:
+        """Disponibilidad de una capacidad con la conectividad actual."""
+        return self._capabilities.availability(
+            capability_id,
+            self._connectivity,
+        )
 
     def start(self) -> bool:
         """Inicia el Core: STARTING -> IDLE. Devuelve False si ya inició."""

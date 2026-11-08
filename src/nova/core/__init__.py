@@ -1,3 +1,5 @@
+from nova.core.capabilities import Availability, Capability, RiskLevel
+from nova.core.capability_manager import CapabilityManager
 from nova.core.commands import Command
 from nova.core.conversation import (
     Conversation,
@@ -17,6 +19,10 @@ from nova.core.state import (
 from nova.core.state_manager import StateManager
 
 __all__ = [
+    "Availability",
+    "Capability",
+    "CapabilityManager",
+    "RiskLevel",
     "Command",
     "Conversation",
     "ConversationMessage",
