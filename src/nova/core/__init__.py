@@ -6,6 +6,7 @@ from nova.core.conversation import (
     ConversationMessage,
     MessageRole,
 )
+from nova.core.system_service import SystemService
 from nova.core.event_bus import EventBus
 from nova.core.events import Event, EventNames
 from nova.core.orchestrator import CoreOrchestrator
@@ -39,4 +40,5 @@ __all__ = [
     "NovaState",
     "OrbState",
     "StateManager",
+    "SystemService",
 ]
