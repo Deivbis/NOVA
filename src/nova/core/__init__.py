@@ -1,10 +1,14 @@
+from nova.core.capabilities import Availability, Capability, RiskLevel
+from nova.core.capability_manager import CapabilityManager
 from nova.core.commands import Command
 from nova.core.conversation import (
     Conversation,
     ConversationMessage,
     MessageRole,
 )
-from nova.core.events import Event
+from nova.core.system_service import SystemService
+from nova.core.event_bus import EventBus
+from nova.core.events import Event, EventNames
 from nova.core.orchestrator import CoreOrchestrator
 from nova.core.requests import QueuedRequest, RequestStatus
 from nova.core.result import Failure, Result
@@ -13,13 +17,20 @@ from nova.core.state import (
     NovaState,
     OrbState,
 )
+from nova.core.state_manager import StateManager
 
 __all__ = [
+    "Availability",
+    "Capability",
+    "CapabilityManager",
+    "RiskLevel",
     "Command",
     "Conversation",
     "ConversationMessage",
     "MessageRole",
     "Event",
+    "EventBus",
+    "EventNames",
     "CoreOrchestrator",
     "QueuedRequest",
     "RequestStatus",
@@ -28,4 +39,6 @@ __all__ = [
     "ConnectivityState",
     "NovaState",
     "OrbState",
+    "StateManager",
+    "SystemService",
 ]

@@ -33,7 +33,7 @@ def test_ui_state_maps_processing() -> None:
 
 def test_ui_state_maps_responding() -> None:
     state = UIState.from_core(
-        NovaState.RESPONDING,
+        NovaState.SPEAKING,
         ConnectivityState.ONLINE,
     )
 
@@ -54,7 +54,8 @@ def test_ui_state_defaults_unsupported_orb_states_to_idle() -> None:
         NovaState.STARTING,
         NovaState.WAITING_CONFIRMATION,
         NovaState.OFFLINE,
-        NovaState.SHUTTING_DOWN,
+        NovaState.STOPPING,
+        NovaState.STOPPED,
     )
 
     for nova_state in unsupported_states:
@@ -64,3 +65,12 @@ def test_ui_state_defaults_unsupported_orb_states_to_idle() -> None:
         )
 
         assert state.orb_state == OrbState.IDLE
+
+def test_ui_state_maps_thinking_and_executing_to_processing() -> None:
+    for nova_state in (NovaState.THINKING, NovaState.EXECUTING):
+        state = UIState.from_core(
+            nova_state,
+            ConnectivityState.ONLINE,
+        )
+
+        assert state.orb_state == OrbState.PROCESSING

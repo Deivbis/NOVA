@@ -69,3 +69,9 @@ src/nova/ui/qml/pysidedeploy.spec
 orb_diff_review.txt
 pysidedeploy.spec
 pysidedeploy-onefile.spec
+
+# Base de datos local (DOC-016: datos personales fuera de Git)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

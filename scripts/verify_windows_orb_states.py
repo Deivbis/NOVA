@@ -126,7 +126,7 @@ def main() -> int:
             NovaState.IDLE,
             NovaState.LISTENING,
             NovaState.PROCESSING,
-            NovaState.RESPONDING,
+            NovaState.SPEAKING,
             NovaState.ERROR,
             NovaState.IDLE,
         ]

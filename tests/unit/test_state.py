@@ -4,13 +4,29 @@ from nova.core.state import (
     OrbState,
 )
 
+DOC_017_STATES = {
+    "STARTING",
+    "IDLE",
+    "LISTENING",
+    "PROCESSING",
+    "THINKING",
+    "EXECUTING",
+    "SPEAKING",
+    "WAITING_CONFIRMATION",
+    "OFFLINE",
+    "ERROR",
+    "STOPPING",
+    "STOPPED",
+}
 
-def test_nova_states_exist():
-    assert NovaState.IDLE.value == "idle"
-    assert NovaState.LISTENING.value == "listening"
-    assert NovaState.PROCESSING.value == "processing"
-    assert NovaState.RESPONDING.value == "responding"
-    assert NovaState.ERROR.value == "error"
+
+def test_nova_states_match_doc_017():
+    assert {state.name for state in NovaState} == DOC_017_STATES
+
+
+def test_nova_state_values_are_lowercase_names():
+    for state in NovaState:
+        assert state.value == state.name.lower()
 
 
 def test_connectivity_states_exist():
