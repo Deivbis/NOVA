@@ -28,6 +28,13 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   archivos que cierran el proceso de pytest al lanzar un `QThread` real. Se
   corrigen en la fase de UI (hace falta un `bridge.shutdown()`).
 
+  - **D-008 Ubicación de datos.** La carpeta de datos es `%APPDATA%/NOVA`,
+  reemplazable con la variable `NOVA_DATA_DIR` (en desarrollo, p. ej.
+  `C:\NOVA\data`, como describe DOC-016). La base es `<datos>/nova.db`, los
+  logs `<datos>/logs`. La consola y la app de escritorio usan
+  `default_database_path()`, un único punto de verdad. Esto precisa
+  DOC-016, que indica `data/nova.db` sin considerar el empaquetado `.exe`.
+
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:
@@ -40,3 +47,9 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
 - **P-005 Documentos perdidos.** SPEC-001, DOC-001, DOC-019 y DOC-020.
 - **P-006 Conectividad.** Nada detecta hoy si hay Internet; el estado
   `OFFLINE` se conectará con el chequeo real en la Fase 3.
+
+  - **P-007 Sección `[paths]` de `default.toml`.** Conserva el diseño antiguo
+  (`data/database`, `data/logs`...) y hoy no gobierna la ubicación real de
+  los datos (ver D-008). Reconciliar en la Fase 3.
+- **P-008 App de escritorio.** `application.py` aún no usa logging ni la
+  configuración. Se integra al inicio de la Fase 3, ajustando su prueba.
