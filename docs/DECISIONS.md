@@ -35,6 +35,12 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   `default_database_path()`, un único punto de verdad. Esto precisa
   DOC-016, que indica `data/nova.db` sin considerar el empaquetado `.exe`.
 
+- **D-009 Modelo local.** `qwen3:4b-instruct` (Qwen3-4B-Instruct-2507, sin
+  razonamiento), en Ollama con `keep_alive="2m"`. La etiqueta `qwen3:4b`
+  genera cientos de tokens de razonamiento antes de responder (85 s frente
+  a 4 s en un Ryzen 5 8600G solo con CPU) y `think=false` no lo desactiva.
+  La capa de IA además descarta cualquier bloque `<think>` de la respuesta.
+
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:
@@ -53,3 +59,10 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   los datos (ver D-008). Reconciliar en la Fase 3.
 - **P-008 App de escritorio.** `application.py` aún no usa logging ni la
   configuración. Se integra al inicio de la Fase 3, ajustando su prueba.
+
+- **P-009 Personalidad.** Hoy no hay instrucciones de sistema: NOVA responde
+  con emojis y tono casual. Implementar Atlas/Asti, el tratamiento "Jefe" y
+  el estilo sobrio de SPEC-002/003 en la Fase 5.
+- **P-010 Markdown en la interfaz.** El QML muestra `**texto**` sin
+  interpretar. Activar `textFormat: Text.MarkdownText` al integrar la
+  interfaz (Fase 10).
