@@ -2,6 +2,7 @@ import json
 from urllib.error import HTTPError, URLError
 
 from nova.ai import LocalAIService
+from nova.ai.local_ai_service import DEFAULT_MODEL, strip_reasoning
 from nova.core import Command
 
 
@@ -58,7 +59,7 @@ def test_chat_sends_history_to_ollama_chat_endpoint():
 
     assert url.endswith("/api/chat")
     assert payload["messages"] == messages
-    assert payload["model"] == "qwen3:4b"
+    assert payload["model"] == DEFAULT_MODEL
     assert payload["think"] is False
     assert payload["keep_alive"] == "2m"
     assert payload["stream"] is False
@@ -198,3 +199,47 @@ def test_error_messages_never_include_user_content():
     result = service.chat([user("secreto-123")])
 
     assert "secreto-123" not in result.error.message
+
+
+
+def test_strip_reasoning_removes_complete_think_block():
+    text = "<think>pienso...</think>Hola, Jefe."
+
+    assert strip_reasoning(text) == "Hola, Jefe."
+
+
+def test_strip_reasoning_handles_closing_tag_only():
+    text = "Okay, el usuario pregunta...\n</think>\n\nRespuesta final."
+
+    assert strip_reasoning(text) == "Respuesta final."
+
+
+def test_strip_reasoning_leaves_plain_answers_untouched():
+    assert strip_reasoning("  Hola  ") == "Hola"
+
+
+def test_strip_reasoning_drops_unfinished_reasoning():
+    assert strip_reasoning("Hola<think>sigo pensando") == "Hola"
+
+
+def test_chat_removes_reasoning_from_model_answer():
+    service = LocalAIService(
+        transport=FakeTransport(
+            reply("razonamiento largo</think>Respuesta limpia.")
+        )
+    )
+
+    result = service.chat([user("Hola")])
+
+    assert result.value == "Respuesta limpia."
+
+
+def test_answer_with_only_unfinished_reasoning_is_a_failure():
+    service = LocalAIService(
+        transport=FakeTransport(reply("<think>sigo pensando"))
+    )
+
+    result = service.chat([user("Hola")])
+
+    assert not result.success
+    assert result.error.code == "EMPTY_AI_RESPONSE"

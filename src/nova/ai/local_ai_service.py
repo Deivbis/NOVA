@@ -5,7 +5,7 @@ from collections.abc import Callable
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-
+import re
 from nova.core.commands import Command
 from nova.core.logging_setup import get_logger
 from nova.core.result import Result
@@ -13,6 +13,10 @@ from nova.core.result import Result
 logger = get_logger(__name__)
 
 VALID_ROLES = frozenset({"system", "user", "assistant"})
+# Variante sin razonamiento (Qwen3-4B-Instruct-2507). Si la etiqueta en
+# Ollama es otra, se cambia aquí.
+DEFAULT_MODEL = "qwen3:4b-instruct"
+_THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL)
 
 Transport = Callable[[str, dict[str, Any], int], Any]
 
@@ -31,7 +35,23 @@ def _post_json(
 
     with urlopen(request, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
+    
+def strip_reasoning(text: str) -> str:
+    """Remove chain-of-thought that some models include in their answer.
 
+    Handles complete <think>...</think> blocks, answers where only the
+    closing tag appears (the chat template adds the opening one) and
+    unfinished reasoning.
+    """
+    cleaned = _THINK_BLOCK.sub("", text)
+
+    if "</think>" in cleaned:
+        cleaned = cleaned.rsplit("</think>", 1)[1]
+
+    if "<think>" in cleaned:
+        cleaned = cleaned.split("<think>", 1)[0]
+
+    return cleaned.strip()
 
 def _invalid_message(message: str) -> Result[str]:
     return Result.fail(code="INVALID_MESSAGE", message=message)
@@ -46,7 +66,7 @@ class LocalAIService:
     def __init__(
         self,
         base_url: str = "http://localhost:11434",
-        model: str = "qwen3:4b",
+        model: str = DEFAULT_MODEL,
         timeout: int = 120,
         keep_alive: str = "2m",
         transport: Transport | None = None,
@@ -118,9 +138,12 @@ class LocalAIService:
             )
 
         answer = data.get("message")
+        raw_content = (
+            answer.get("content") if isinstance(answer, dict) else None
+        )
         content = (
-            answer.get("content", "").strip()
-            if isinstance(answer, dict)
+            strip_reasoning(raw_content)
+            if isinstance(raw_content, str)
             else ""
         )
 
