@@ -27,7 +27,7 @@ from nova.ui.state import UIState
 logger = get_logger(__name__)
 
 ERROR_DISPLAY_MS = 2500
-
+SHUTDOWN_WAIT_MS = 3000
 
 class RequestWorker(QObject):
     """Execute one NOVA request outside the UI thread."""
@@ -90,6 +90,7 @@ class NovaUiBridge(QObject):
         self._request_queue = RequestQueue()
         self._requests_by_conversation: dict[UUID, int] = {}
         self._transient_errors: dict[UUID, str] = {}
+        self._shutting_down = False
 
         self._active_thread: QThread | None = None
         self._active_worker: RequestWorker | None = None
@@ -208,7 +209,7 @@ class NovaUiBridge(QObject):
     def send_message(self, text: str) -> None:
         message = text.strip()
 
-        if not message:
+        if not message or self._shutting_down:
             return
 
         repository = self._repository()
@@ -305,6 +306,10 @@ class NovaUiBridge(QObject):
         request: QueuedRequest,
         result: Result,
     ) -> None:
+
+        if self._shutting_down:
+            return
+        
         conversation_id = request.conversation_id
 
         if not result.success:
@@ -379,6 +384,10 @@ class NovaUiBridge(QObject):
 
     @Slot()
     def _on_worker_thread_finished(self) -> None:
+
+        if self._shutting_down:
+            return
+        
         self._active_thread = None
         self._active_worker = None
         self._active_request = None
@@ -418,6 +427,39 @@ class NovaUiBridge(QObject):
 
         if self._conversation.conversation_id == conversation_id:
             self.conversationChanged.emit()
+
+    def shutdown(self, wait_ms: int = SHUTDOWN_WAIT_MS) -> None:
+        """Stop the bridge: no timer, no queued work, no running thread."""
+        if self._shutting_down:
+            return
+
+        self._shutting_down = True
+        self._timer.stop()
+
+        while self._request_queue.dequeue() is not None:
+            pass
+
+        thread = self._active_thread
+        self._active_thread = None
+        self._active_worker = None
+        self._active_request = None
+
+        if thread is None:
+            return
+
+        try:
+            thread.quit()
+
+            if not thread.wait(wait_ms):
+                logger.warning(
+                    "La solicitud activa no terminó a tiempo; "
+                    "se fuerza el cierre del hilo."
+                )
+                thread.terminate()
+                thread.wait()
+        except RuntimeError:
+            # El objeto C++ ya fue destruido: no queda nada que esperar.
+            pass
 
     def _reload_conversation(self, conversation_id: UUID) -> None:
         try:

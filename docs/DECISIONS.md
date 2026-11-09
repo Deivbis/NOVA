@@ -54,11 +54,11 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
 - **P-006 Conectividad.** Nada detecta hoy si hay Internet; el estado
   `OFFLINE` se conectará con el chequeo real en la Fase 3.
 
-  - **P-007 Sección `[paths]` de `default.toml`.** Conserva el diseño antiguo
-  (`data/database`, `data/logs`...) y hoy no gobierna la ubicación real de
-  los datos (ver D-008). Reconciliar en la Fase 3.
-- **P-008 App de escritorio.** `application.py` aún no usa logging ni la
-  configuración. Se integra al inicio de la Fase 3, ajustando su prueba.
+- **D-007 Cierre de hilos de la UI.** `NovaUiBridge.shutdown()` detiene el
+  temporizador, descarta lo pendiente y espera hasta 3 s al hilo activo
+  (si no termina, lo fuerza). Las señales tardías se ignoran. Las pruebas
+  que lanzaban un `QThread` real sin cerrarlo se reescribieron y ya no están
+  en cuarentena.
 
 - **P-009 Personalidad.** Hoy no hay instrucciones de sistema: NOVA responde
   con emojis y tono casual. Implementar Atlas/Asti, el tratamiento "Jefe" y
