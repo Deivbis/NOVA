@@ -220,7 +220,7 @@ class NovaUiBridge(QObject):
 
         command = Command(
             name="chat.generate",
-            payload={"message": message},
+            payload={"messages": self._conversation.history()},
             source="user",
         )
 

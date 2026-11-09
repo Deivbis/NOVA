@@ -93,3 +93,44 @@ def test_conversation_preserves_message_order():
         first,
         second,
     ]
+
+
+def test_history_returns_role_and_content_in_order():
+    conversation = Conversation()
+    conversation.add_user_message("Hola")
+    conversation.add_assistant_message("Buenas")
+
+    assert conversation.history() == [
+        {"role": "user", "content": "Hola"},
+        {"role": "assistant", "content": "Buenas"},
+    ]
+
+
+def test_history_of_empty_conversation_is_empty():
+    assert Conversation().history() == []
+
+
+def test_history_limits_message_count_keeping_the_newest():
+    conversation = Conversation()
+
+    for number in range(10):
+        conversation.add_user_message(f"mensaje {number}")
+
+    history = conversation.history(max_messages=3)
+
+    assert [item["content"] for item in history] == [
+        "mensaje 7",
+        "mensaje 8",
+        "mensaje 9",
+    ]
+
+
+def test_history_limits_characters_but_keeps_latest_message():
+    conversation = Conversation()
+    conversation.add_user_message("a" * 50)
+    conversation.add_assistant_message("b" * 50)
+    conversation.add_user_message("c" * 200)
+
+    history = conversation.history(max_chars=100)
+
+    assert [item["content"] for item in history] == ["c" * 200]
