@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from uuid import UUID
@@ -18,11 +17,16 @@ from nova.core import (
     CoreOrchestrator,
     NovaState,
 )
+from nova.core.logging_setup import get_logger
 from nova.core.requests import QueuedRequest, RequestStatus
 from nova.core.request_queue import RequestQueue
 from nova.core.result import Result
 from nova.storage.service import StorageService
 from nova.ui.state import UIState
+
+logger = get_logger(__name__)
+
+ERROR_DISPLAY_MS = 2500
 
 
 class RequestWorker(QObject):
@@ -85,6 +89,7 @@ class NovaUiBridge(QObject):
 
         self._request_queue = RequestQueue()
         self._requests_by_conversation: dict[UUID, int] = {}
+        self._transient_errors: dict[UUID, str] = {}
 
         self._active_thread: QThread | None = None
         self._active_worker: RequestWorker | None = None
@@ -159,13 +164,24 @@ class NovaUiBridge(QObject):
     )
 
     def _get_messages(self) -> list[dict[str, str]]:
-        return [
+        messages = [
             {
                 "role": message.role.value,
                 "content": message.content,
             }
             for message in self._conversation.messages
         ]
+
+        error_text = self._transient_errors.get(
+            self._conversation.conversation_id
+        )
+
+        if error_text:
+            # Mensaje transitorio: se muestra, pero no se guarda en la
+            # conversación ni se envía al modelo.
+            messages.append({"role": "error", "content": error_text})
+
+        return messages
 
     messages = Property(
         list,
@@ -197,6 +213,8 @@ class NovaUiBridge(QObject):
 
         repository = self._repository()
         conversation_id = self._conversation.conversation_id
+
+        self._transient_errors.pop(conversation_id, None)
 
         is_first_message = not self._conversation.messages
 
@@ -242,7 +260,7 @@ class NovaUiBridge(QObject):
         self.conversationChanged.emit()
         self.conversationsChanged.emit()
 
-        self._orchestrator.set_state(NovaState.PROCESSING)
+        self._enter_processing()
 
         self._process_next_request()
 
@@ -253,7 +271,8 @@ class NovaUiBridge(QObject):
         request = self._request_queue.dequeue()
 
         if request is None:
-            self._orchestrator.set_state(NovaState.IDLE)
+            if self._orchestrator.state != NovaState.ERROR:
+                self._orchestrator.set_state(NovaState.IDLE)
             return
 
         request.status = RequestStatus.RUNNING
@@ -292,12 +311,16 @@ class NovaUiBridge(QObject):
             request.status = RequestStatus.FAILED
             error = result.error
 
-            print(
-                f"NOVA REQUEST FAILED: "
-                f"{error.code if error else 'UNKNOWN'} - "
-                f"{error.message if error else 'Unknown error'}",
-                flush=True,
+            code = error.code if error else "UNKNOWN"
+            detail = error.message if error else "Error desconocido."
+
+            logger.warning("La solicitud falló: %s", code)
+
+            self._show_error(
+                conversation_id,
+                f"No pude completar tu solicitud. {detail}",
             )
+            self._orchestrator.set_state(NovaState.ERROR)
 
         else:
             try:
@@ -326,15 +349,17 @@ class NovaUiBridge(QObject):
 
                 self.conversationsChanged.emit()
 
-            except Exception as exc:
+            except Exception:
                 request.status = RequestStatus.FAILED
 
-                print(
-                    f"NOVA RESPONSE PERSISTENCE FAILED: {exc}",
-                    flush=True,
-                )
+                logger.exception("No se pudo guardar la respuesta.")
 
                 self._reload_conversation(conversation_id)
+                self._show_error(
+                    conversation_id,
+                    "No pude guardar la respuesta en el historial.",
+                )
+                self._orchestrator.set_state(NovaState.ERROR)
 
         remaining = self._requests_by_conversation.get(
             conversation_id,
@@ -358,12 +383,41 @@ class NovaUiBridge(QObject):
         self._active_worker = None
         self._active_request = None
 
-        if self._request_queue.is_empty:
+        if self._orchestrator.state == NovaState.ERROR:
+            if self._request_queue.is_empty:
+                # Deja visible el error un momento antes de volver a reposo.
+                QTimer.singleShot(
+                    ERROR_DISPLAY_MS,
+                    self._recover_from_error,
+                )
+            else:
+                self._enter_processing()
+        elif self._request_queue.is_empty:
             self._orchestrator.set_state(NovaState.IDLE)
         else:
             self._orchestrator.set_state(NovaState.PROCESSING)
 
         self._process_next_request()
+
+    def _enter_processing(self) -> None:
+        if self._orchestrator.state == NovaState.ERROR:
+            self._orchestrator.set_state(NovaState.IDLE)
+
+        self._orchestrator.set_state(NovaState.PROCESSING)
+
+    @Slot()
+    def _recover_from_error(self) -> None:
+        if (
+            self._orchestrator.state == NovaState.ERROR
+            and self._active_thread is None
+        ):
+            self._orchestrator.set_state(NovaState.IDLE)
+
+    def _show_error(self, conversation_id: UUID, text: str) -> None:
+        self._transient_errors[conversation_id] = text
+
+        if self._conversation.conversation_id == conversation_id:
+            self.conversationChanged.emit()
 
     def _reload_conversation(self, conversation_id: UUID) -> None:
         try:
@@ -446,9 +500,8 @@ class NovaUiBridge(QObject):
             raise RuntimeError("Invalid conversation id.") from exc
 
         if self._requests_by_conversation.get(conversation_uuid, 0) > 0:
-            print(
-                "NOVA: Cannot delete a conversation with active requests.",
-                flush=True,
+            logger.info(
+                "No se puede borrar una conversación con solicitudes activas."
             )
             return
 
@@ -459,6 +512,8 @@ class NovaUiBridge(QObject):
 
         if not deleted:
             return
+
+        self._transient_errors.pop(conversation_uuid, None)
 
         if is_active:
             self._conversation = self._load_or_create_conversation()
