@@ -28,12 +28,12 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   archivos que cierran el proceso de pytest al lanzar un `QThread` real. Se
   corrigen en la fase de UI (hace falta un `bridge.shutdown()`).
 
-  - **D-008 Ubicación de datos.** La carpeta de datos es `%APPDATA%/NOVA`,
-  reemplazable con la variable `NOVA_DATA_DIR` (en desarrollo, p. ej.
-  `C:\NOVA\data`, como describe DOC-016). La base es `<datos>/nova.db`, los
-  logs `<datos>/logs`. La consola y la app de escritorio usan
-  `default_database_path()`, un único punto de verdad. Esto precisa
-  DOC-016, que indica `data/nova.db` sin considerar el empaquetado `.exe`.
+- **D-010 Arranque y cierre de la app de escritorio.** `application.py`
+  usa el mismo `create_core()` y `create_configuration()` que la consola,
+  activa el logging y registra la capacidad `chat.local`. Al cerrar, el
+  orden es: `bridge.shutdown()`, `orchestrator.stop()` y, al final, cierre
+  de la base de datos (una respuesta tardía no debe escribir en una base
+  cerrada).
 
 - **D-009 Modelo local.** `qwen3:4b-instruct` (Qwen3-4B-Instruct-2507, sin
   razonamiento), en Ollama con `keep_alive="2m"`. La etiqueta `qwen3:4b`
@@ -66,3 +66,7 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
 - **P-010 Markdown en la interfaz.** El QML muestra `**texto**` sin
   interpretar. Activar `textFormat: Text.MarkdownText` al integrar la
   interfaz (Fase 10).
+
+- **P-011 Parámetros de IA en la configuración.** El modelo, la URL de
+  Ollama y el timeout están en el código (`LocalAIService`). Moverlos a una
+  sección `[ai]` de `default.toml`.

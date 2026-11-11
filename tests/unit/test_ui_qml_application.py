@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock
+
 import pytest
+
 from nova.ui.qml import application
 
 
@@ -51,6 +53,7 @@ class FakeOrb:
 def startup_mocks(monkeypatch, tmp_path):
     fake_app = FakeApplication([])
     storage = MagicMock()
+    orchestrator = MagicMock()
     engine = FakeEngine(
         [
             MagicMock(),
@@ -61,6 +64,12 @@ def startup_mocks(monkeypatch, tmp_path):
     bridge = MagicMock()
     bridge.orbStateChanged = FakeSignal()
     bridge.orbState = "idle"
+
+    # Registra el orden en que se cierran los componentes.
+    calls = MagicMock()
+    calls.attach_mock(bridge.shutdown, "bridge_shutdown")
+    calls.attach_mock(orchestrator.stop, "core_stop")
+    calls.attach_mock(storage.close, "storage_close")
 
     dll_directory = MagicMock()
 
@@ -81,8 +90,23 @@ def startup_mocks(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(
         application,
-        "CoreOrchestrator",
-        MagicMock,
+        "create_core",
+        lambda: orchestrator,
+    )
+    monkeypatch.setattr(
+        application,
+        "create_configuration",
+        lambda: MagicMock(),
+    )
+    monkeypatch.setattr(
+        application,
+        "setup_logging",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        application,
+        "default_logs_dir",
+        lambda: tmp_path / "logs",
     )
     monkeypatch.setattr(
         application,
@@ -111,6 +135,9 @@ def startup_mocks(monkeypatch, tmp_path):
         "engine": engine,
         "controller": controller,
         "dll_directory": dll_directory,
+        "orchestrator": orchestrator,
+        "bridge": bridge,
+        "calls": calls,
     }
 
 
@@ -173,4 +200,34 @@ def test_storage_closes_after_normal_shutdown(
 
     assert result == 0
     storage.close.assert_called_once()
+    startup_mocks["dll_directory"].close.assert_called_once()
+
+
+def test_components_shut_down_in_order_ui_core_storage(
+    startup_mocks,
+):
+    application.main()
+
+    names = [call[0] for call in startup_mocks["calls"].mock_calls]
+
+    assert names == ["bridge_shutdown", "core_stop", "storage_close"]
+
+
+def test_configuration_failure_returns_error_without_starting(
+    startup_mocks,
+    monkeypatch,
+):
+    def broken_configuration():
+        raise RuntimeError("configuración rota")
+
+    monkeypatch.setattr(
+        application,
+        "create_configuration",
+        broken_configuration,
+    )
+
+    result = application.main()
+
+    assert result == 1
+    startup_mocks["storage"].initialize.assert_not_called()
     startup_mocks["dll_directory"].close.assert_called_once()
