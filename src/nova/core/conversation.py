@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from enum import Enum
 from uuid import UUID, uuid4
 
+DEFAULT_HISTORY_MAX_MESSAGES = 20
+DEFAULT_HISTORY_MAX_CHARS = 8000
 
 class MessageRole(str, Enum):
     USER = "user"
@@ -62,6 +64,39 @@ class Conversation:
         self._touch()
 
         return message
+    
+    def history(
+        self,
+        max_messages: int = DEFAULT_HISTORY_MAX_MESSAGES,
+        max_chars: int = DEFAULT_HISTORY_MAX_CHARS,
+    ) -> list[dict[str, str]]:
+        """Return the recent messages in the format used by AI providers.
 
+        Takes the newest messages first until the message or character
+        budget is exhausted. The newest message is always included.
+        """
+        selected: list[dict[str, str]] = []
+        total_chars = 0
+
+        for message in reversed(self.messages):
+            if len(selected) >= max_messages:
+                break
+
+            total_chars += len(message.content)
+
+            if selected and total_chars > max_chars:
+                break
+
+            selected.append(
+                {
+                    "role": message.role.value,
+                    "content": message.content,
+                }
+            )
+
+        selected.reverse()
+
+        return selected
+    
     def _touch(self) -> None:
         self.updated_at = datetime.now(timezone.utc)

@@ -1,11 +1,20 @@
 """Configuración compartida de pytest para NOVA."""
 
-# Archivos en cuarentena: lanzan un QThread real sin cerrarlo y hacen
-# caer el proceso completo de pytest (código 0xC0000409 en Windows).
-# Pertenecen a la capa de UI, fuera del alcance de la v0.1 (DOC-023).
-# TODO (fase UI): añadir bridge.shutdown() que espere al hilo activo,
-# actualizar estas pruebas al modelo QThread y quitar esta lista.
-collect_ignore = [
-    "integration/test_conversation_persistence.py",
-    "unit/test_ui_qml_bridge.py",
-]
+import pytest
+
+
+@pytest.fixture
+def qapp():
+    """Aplicación Qt compartida para las pruebas de interfaz.
+
+    PySide6 se importa aquí dentro para que las pruebas del Core no
+    dependan de la interfaz (DOC-022: Core ejecutable sin UI).
+    """
+    from PySide6.QtCore import QCoreApplication
+
+    application = QCoreApplication.instance()
+
+    if application is None:
+        application = QCoreApplication([])
+
+    return application

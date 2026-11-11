@@ -5,11 +5,15 @@ import sys
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 from nova.ai import LocalAIService
-from nova.core import CoreOrchestrator
-from nova.storage.paths import default_database_path
+from nova.core import Capability
+from nova.core.logging_setup import get_logger, setup_logging
+from nova.main import create_configuration, create_core
+from nova.storage.paths import default_database_path, default_logs_dir
 from nova.storage.service import StorageService
 from nova.ui.qml.bridge import NovaUiBridge
 from nova.ui.qml.windows_orb import WindowsOrbController
+
+logger = get_logger(__name__)
 
 
 def main() -> int:
@@ -21,33 +25,67 @@ def main() -> int:
         if pyside_path.is_dir()
         else None
     )
+
     storage_service = None
-    storage_closed = False
+    orchestrator = None
+    bridge = None
+    shut_down = False
 
-    def close_storage() -> None:
-        nonlocal storage_closed
+    def shutdown() -> None:
+        """Cierra en orden: interfaz, Core y, al final, la base de datos."""
+        nonlocal shut_down
 
-        if storage_service is not None and not storage_closed:
-            storage_closed = True
+        if shut_down:
+            return
+
+        shut_down = True
+
+        if bridge is not None:
+            bridge.shutdown()
+
+        if orchestrator is not None:
+            orchestrator.stop()
+
+        if storage_service is not None:
             storage_service.close()
 
     try:
         app = QGuiApplication(sys.argv)
 
+        try:
+            config = create_configuration().initialize()
+        except Exception:
+            setup_logging(default_logs_dir())
+            logger.exception("No se pudo cargar la configuración de NOVA.")
+            return 1
+
+        setup_logging(default_logs_dir(), debug=config.execution.debug)
+        logger.info(
+            "NOVA %s iniciando (interfaz de escritorio).",
+            config.nova.version,
+        )
+
         storage_service = StorageService(
             default_database_path()
         )
 
-        app.aboutToQuit.connect(close_storage)
+        app.aboutToQuit.connect(shutdown)
 
         try:
             storage_service.initialize()
 
-            orchestrator = CoreOrchestrator()
-            orchestrator.start()
+            orchestrator = create_core()
 
             local_ai_service = LocalAIService()
 
+            orchestrator.capabilities.register(
+                Capability(
+                    id="chat.local",
+                    name="Conversación local",
+                    description="Conversación con el modelo local (Ollama).",
+                    provider="ollama",
+                )
+            )
             orchestrator.register_command(
                 "chat.generate",
                 local_ai_service.handle,
@@ -106,10 +144,16 @@ def main() -> int:
                 orb_controller.native_filter,
             )
 
+            logger.info("Interfaz iniciada.")
+
             return app.exec()
 
+        except Exception:
+            logger.exception("Fallo durante el arranque de la interfaz.")
+            return 1
+
         finally:
-            close_storage()
+            shutdown()
 
     finally:
         if dll_directory is not None:
