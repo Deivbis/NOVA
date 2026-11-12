@@ -91,6 +91,19 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   `identity`, `prefer_online`, `hotkey`); si falta o es inválido se usan los
   valores por defecto, con la voz apagada.
 
+- **D-023 Servicio de voz.** `VoiceService` habla fuera del hilo de la UI
+  (hilo daemon). `speak()` activa `SPEAKING` de inmediato y reemplaza lo que
+  esté sonando; `stop()` corta el audio al instante; solo corre una
+  síntesis a la vez (espeak no es seguro entre hilos). Publica
+  `voice.speaking_started`, `voice.speaking_finished` (con `cancelled`) y
+  `voice.error`, solo con metadatos. Un fallo de voz NO pone el Core en
+  `ERROR`: se registra el código y el bridge muestra una burbuja transitoria
+  (el texto de la respuesta ya está en el chat). El bridge no vuelve a
+  `IDLE` mientras suena la voz y expone `voiceEnabled`, `voiceIdentity`,
+  `stop_speaking`, `set_voice_enabled`, `set_voice_identity` y
+  `set_online_voice` para la interfaz de la Fase 10. Mientras tanto, las
+  preferencias se cambian con `scripts/set_voice.py`.
+
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:

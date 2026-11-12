@@ -8,7 +8,21 @@ from nova.ai import LocalAIService
 from nova.core import Capability
 from nova.core.logging_setup import get_logger, setup_logging
 from nova.main import create_configuration, create_core
-from nova.storage.paths import default_database_path, default_logs_dir
+from nova.storage.paths import (
+    default_database_path,
+    default_logs_dir,
+    default_voices_dir,
+)
+from nova.voice import (
+    EdgeTTSProvider,
+    PiperTTSProvider,
+    SoundDevicePlayer,
+    TTSRouter,
+    VoiceService,
+    load_voice_settings,
+    save_voice_settings,
+)
+
 from nova.storage.service import StorageService
 from nova.ui.qml.bridge import NovaUiBridge
 from nova.ui.qml.windows_orb import WindowsOrbController
@@ -86,14 +100,42 @@ def main() -> int:
                     provider="ollama",
                 )
             )
+
+            orchestrator.capabilities.register(
+                Capability(
+                    id="voice.output",
+                    name="Voz de salida",
+                    description=(
+                        "Síntesis de voz local (Piper) y en línea "
+                        "(edge-tts, opcional)."
+                    ),
+                    provider="piper",
+                )
+            )
+
             orchestrator.register_command(
                 "chat.generate",
                 local_ai_service.handle,
             )
 
+            voice_settings = load_voice_settings()
+            voice_service = VoiceService(
+                core=orchestrator,
+                router=TTSRouter(
+                    local=PiperTTSProvider(default_voices_dir()),
+                    online=EdgeTTSProvider(),
+                    prefer_online=voice_settings.prefer_online,
+                    connectivity=lambda: orchestrator.connectivity,
+                ),
+                player=SoundDevicePlayer(),
+                settings=voice_settings,
+                save_settings=save_voice_settings,
+            )
+
             bridge = NovaUiBridge(
                 orchestrator,
                 storage_service,
+                voice_service,
             )
 
             engine = QQmlApplicationEngine()
