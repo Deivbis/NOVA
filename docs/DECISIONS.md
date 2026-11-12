@@ -67,6 +67,21 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   `scripts/demo_voice.py` y funciones en el bridge. El micrófono en la
   interfaz llega con la Fase 10.
 
+- **D-020 Resultado de la prueba técnica de voz.** Funcionan en Python 3.13
+  / Windows: piper-tts 1.8.0, faster-whisper 1.2.1, ctranslate2 4.9.0,
+  edge-tts 7.3.1 y onnxruntime 1.31.1. STT `small` en CPU: 1,1 s para 6 s de
+  audio. Micrófono: dispositivo predeterminado a 16 kHz mono. Voces
+  confirmadas por oído: Piper (sin conexión) y edge-tts (con conexión). Las
+  voces de Piper se guardan en `%APPDATA%/NOVA/voices`. Whisper falla con
+  nombres propios: se sesgará el vocabulario (`hotwords`) con "Atlas",
+  "Asti", "NOVA" y el nombre del usuario. Un fallo de micrófono (MME error
+  1) apareció en un entorno anterior y desapareció al unificar entornos
+  (causa no determinada).
+- **D-021 Selector de voz.** `TTSRouter` usa la voz local por defecto; la
+  voz en línea solo si está activada y la conectividad no es OFFLINE. Si
+  falla, vuelve a la local y no reintenta durante 60 s. Nunca registra el
+  texto hablado.
+
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:
