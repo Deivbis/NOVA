@@ -16,6 +16,12 @@ ui = [
 dev = [
     "pytest"
 ]
+voice = [
+    "piper-tts>=1.8,<2",
+    "faster-whisper>=1.2,<2",
+    "edge-tts>=7.3,<8",
+    "sounddevice",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

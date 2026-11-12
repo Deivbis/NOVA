@@ -47,3 +47,20 @@ def default_logs_dir(
     """Return the NOVA logs directory."""
 
     return default_data_dir(environ) / "logs"
+
+
+
+def default_settings_path(
+    environ: Mapping[str, str] | None = None,
+) -> Path:
+    """Return the user settings file path."""
+
+    return default_data_dir(environ) / "settings.json"
+
+
+def default_voices_dir(
+    environ: Mapping[str, str] | None = None,
+) -> Path:
+    """Return the directory that holds the Piper voice models."""
+
+    return default_data_dir(environ) / "voices"

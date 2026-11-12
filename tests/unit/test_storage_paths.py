@@ -7,8 +7,9 @@ from nova.storage.paths import (
     default_data_dir,
     default_database_path,
     default_logs_dir,
+    default_settings_path,
+    default_voices_dir,
 )
-
 APPDATA = r"C:\Users\Test\AppData\Roaming"
 
 
@@ -49,3 +50,14 @@ def test_logs_dir_lives_inside_data_dir():
 def test_missing_appdata_without_override_raises():
     with pytest.raises(RuntimeError):
         default_data_dir({})
+
+def test_settings_path_lives_in_data_dir():
+    assert default_settings_path({"APPDATA": APPDATA}) == (
+        Path(APPDATA) / "NOVA" / "settings.json"
+    )
+
+
+def test_voices_dir_lives_in_data_dir():
+    assert default_voices_dir({"APPDATA": APPDATA}) == (
+        Path(APPDATA) / "NOVA" / "voices"
+    )

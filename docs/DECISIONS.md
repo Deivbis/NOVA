@@ -82,6 +82,15 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   falla, vuelve a la local y no reintenta durante 60 s. Nunca registra el
   texto hablado.
 
+- **D-022 Voz de salida real y preferencias.** `PiperTTSProvider` carga
+  cada voz una sola vez (carga perezosa) desde `%APPDATA%/NOVA/voices`;
+  `EdgeTTSProvider` decodifica el MP3 con PyAV y tiene un tope de 15 s;
+  `SoundDevicePlayer` reproduce por la salida predeterminada. Ningún módulo
+  importa las librerías de audio al arrancar. Las preferencias de voz viven
+  en `%APPDATA%/NOVA/settings.json` (sección `voice`: `enabled`,
+  `identity`, `prefer_online`, `hotkey`); si falta o es inválido se usan los
+  valores por defecto, con la voz apagada.
+
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:
