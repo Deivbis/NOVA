@@ -41,6 +41,32 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   a 4 s en un Ryzen 5 8600G solo con CPU) y `think=false` no lo desactiva.
   La capa de IA además descarta cualquier bloque `<think>` de la respuesta.
 
+- **D-011 Voz de salida.** Piper por defecto (100 % local, offline-first);
+  edge-tts como "voz online" opcional, apagada por defecto (envía el texto
+  a servidores de Microsoft). Nota: piper-tts 1.3+ es GPL-3.0.
+- **D-012 Voces.** Sin conexión: Atlas `es_MX-ald`, Asti `es_MX-claude`.
+  Con conexión: Atlas `es-MX-JorgeNeural`, Asti `es-MX-DaliaNeural`.
+  Reserva (España): `davefx` y `sharvard`. Género y calidad por confirmar
+  al escucharlas.
+- **D-013 Activación.** Primero "pulsar para hablar" con tecla global
+  `Pause/Break` (configurable): una pulsación escucha, se detiene sola por
+  silencio, y otra pulsación cancela o interrumpe. La palabra clave va al
+  final de la fase; el modo continuo, después.
+- **D-014 Palabra clave.** Frases de dos palabras (los modelos de
+  openWakeWord ya entrenados son solo en inglés; hay que entrenar uno propio).
+- **D-015 Reconocimiento.** faster-whisper `small`, CPU, español. Se carga
+  al primer uso y se libera tras 5 min sin hablar (configurable).
+- **D-016 Audio.** Nunca se guarda. Se procesa en memoria y solo la
+  transcripción entra a la conversación, con las mismas reglas que el texto.
+- **D-017 Identidad.** Concepto mínimo `ATLAS`/`ASTI` que elige la voz; el
+  cambio no afecta a la conversación ni a la memoria. La personalidad
+  (tono, "Jefe") es la Fase 5.
+- **D-018 Latencia.** Primero voz con la respuesta completa; el streaming
+  de la IA con habla por frases es el último paso de la fase.
+- **D-019 Interfaz.** La Fase 4 no toca el QML: se prueba con
+  `scripts/demo_voice.py` y funciones en el bridge. El micrófono en la
+  interfaz llega con la Fase 10.
+
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:
@@ -67,6 +93,7 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   interpretar. Activar `textFormat: Text.MarkdownText` al integrar la
   interfaz (Fase 10).
 
-- **P-011 Parámetros de IA en la configuración.** El modelo, la URL de
-  Ollama y el timeout están en el código (`LocalAIService`). Moverlos a una
-  sección `[ai]` de `default.toml`.
+- **P-012 Palabra clave.** Falta decidir las frases (¿una por identidad,
+  "Hey Atlas" y "Hey Asti", o una común?).
+- **P-013 Router de IA en la nube.** Previsto en DOC-022 (Gemini, Groq,
+  OpenRouter), sin fase asignada en el roadmap.
