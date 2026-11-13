@@ -15,6 +15,9 @@ from nova.storage.paths import default_settings_path
 
 logger = get_logger(__name__)
 
+DEFAULT_VOCABULARY = ("Atlas", "Asti", "NOVA")
+MAX_VOCABULARY = 20
+
 
 @dataclass(frozen=True)
 class VoiceSettings:
@@ -22,6 +25,7 @@ class VoiceSettings:
     identity: Identity = Identity.ATLAS
     prefer_online: bool = False
     hotkey: str = "pause"
+    vocabulary: tuple[str, ...] = DEFAULT_VOCABULARY
 
 
 def _as_bool(value: Any, default: bool) -> bool:
@@ -40,6 +44,22 @@ def _as_text(value: Any, default: str) -> str:
         return value.strip()
 
     return default
+
+
+def _as_vocabulary(
+    value: Any,
+    default: tuple[str, ...],
+) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        return default
+
+    words = tuple(
+        item.strip()
+        for item in value
+        if isinstance(item, str) and item.strip()
+    )
+
+    return words[:MAX_VOCABULARY] or default
 
 
 def load_voice_settings(path: Path | None = None) -> VoiceSettings:
@@ -71,6 +91,10 @@ def load_voice_settings(path: Path | None = None) -> VoiceSettings:
             defaults.prefer_online,
         ),
         hotkey=_as_text(section.get("hotkey"), defaults.hotkey),
+        vocabulary=_as_vocabulary(
+            section.get("vocabulary"),
+            defaults.vocabulary,
+        ),
     )
 
 
@@ -94,6 +118,7 @@ def save_voice_settings(
         "identity": settings.identity.value,
         "prefer_online": settings.prefer_online,
         "hotkey": settings.hotkey,
+        "vocabulary": list(settings.vocabulary),
     }
 
     settings_path.parent.mkdir(parents=True, exist_ok=True)

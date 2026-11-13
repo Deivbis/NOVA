@@ -4,7 +4,11 @@ Ejecutar desde C:\\NOVA, combinando opciones:
   python scripts/set_voice.py on atlas local
   python scripts/set_voice.py off
   python scripts/set_voice.py asti online
+  python scripts/set_voice.py "vocab=Deivbis,Atlas,Asti,NOVA"
   python scripts/set_voice.py show
+
+El vocabulario ayuda al reconocimiento con nombres propios; ponlo entre
+comillas para que PowerShell no separe las comas.
 """
 
 import dataclasses
@@ -16,11 +20,12 @@ from nova.voice import load_voice_settings, save_voice_settings
 
 
 def main() -> int:
-    options = [arg.lower() for arg in sys.argv[1:]]
     settings = load_voice_settings()
     changed = False
 
-    for option in options:
+    for argument in sys.argv[1:]:
+        option = argument.lower()
+
         if option == "on":
             settings = dataclasses.replace(settings, enabled=True)
         elif option == "off":
@@ -34,10 +39,22 @@ def main() -> int:
             settings = dataclasses.replace(settings, prefer_online=True)
         elif option == "local":
             settings = dataclasses.replace(settings, prefer_online=False)
+        elif option.startswith("vocab="):
+            words = tuple(
+                word.strip()
+                for word in argument[6:].split(",")
+                if word.strip()
+            )
+
+            if not words:
+                print("El vocabulario no puede estar vacío.")
+                return 1
+
+            settings = dataclasses.replace(settings, vocabulary=words)
         elif option == "show":
             continue
         else:
-            print(f"Opción desconocida: {option}")
+            print(f"Opción desconocida: {argument}")
             return 1
 
         changed = True

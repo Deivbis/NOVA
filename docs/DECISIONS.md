@@ -104,6 +104,22 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   `set_online_voice` para la interfaz de la Fase 10. Mientras tanto, las
   preferencias se cambian con `scripts/set_voice.py`.
 
+
+- **D-024 Entrada de voz.** Fin de frase por energía (RMS en bloques de
+  100 ms): voz tras 0,3 s seguidos sobre el umbral, fin tras 1,2 s de
+  silencio, "no detecté voz" a los 6 s y corte a los 20 s. El umbral es
+  adaptativo, entre 0,008 y 0,025. Limitación conocida: en una sala con
+  ruido de fondo por encima de ~0,025 de nivel no distingue la voz y graba
+  hasta el máximo; los parámetros están en `EndOfSpeechConfig`.
+  Transcripción con faster-whisper `small`, VAD y `beam_size=1`; el
+  vocabulario (`settings.vocabulary`, por defecto Atlas, Asti, NOVA; se
+  amplía con `scripts/set_voice.py "vocab=..."`) se pasa como `hotwords`.
+  `VoiceInputService`: LISTENING → PROCESSING; eventos de escucha solo con
+  metadatos (la transcripción viaja por callback, nunca por evento ni log);
+  una pulsación cancela la escucha, interrumpe la voz o empieza a escuchar;
+  se ignora si NOVA está ocupada. Los errores de entrada se publican como
+  `voice.error` con `direction: "input"`.
+  
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:

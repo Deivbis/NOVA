@@ -77,3 +77,27 @@ def test_save_creates_missing_folder(tmp_path):
     save_voice_settings(VoiceSettings(), path)
 
     assert path.exists()
+
+
+
+def test_default_vocabulary_contains_the_assistant_names():
+    assert VoiceSettings().vocabulary == ("Atlas", "Asti", "NOVA")
+
+
+def test_vocabulary_round_trip(tmp_path):
+    path = tmp_path / "settings.json"
+    expected = VoiceSettings(vocabulary=("Deivbis", "Atlas"))
+
+    save_voice_settings(expected, path)
+
+    assert load_voice_settings(path) == expected
+
+
+def test_invalid_vocabulary_falls_back_to_default(tmp_path):
+    path = tmp_path / "settings.json"
+    path.write_text(
+        json.dumps({"voice": {"vocabulary": "no es una lista"}}),
+        encoding="utf-8",
+    )
+
+    assert load_voice_settings(path).vocabulary == VoiceSettings().vocabulary
