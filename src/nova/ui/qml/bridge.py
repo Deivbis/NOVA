@@ -27,7 +27,7 @@ from nova.core.request_queue import RequestQueue
 from nova.core.result import Result
 from nova.storage.service import StorageService
 from nova.ui.state import UIState
-from nova.voice import VoiceService
+from nova.voice import VoiceInputService, VoiceService
 
 logger = get_logger(__name__)
 
@@ -74,12 +74,14 @@ class NovaUiBridge(QObject):
     conversationsChanged = Signal()
     voiceSettingsChanged = Signal()
     voiceErrorRaised = Signal(str)
+    voiceTranscriptReady = Signal(str)
 
     def __init__(
         self,
         orchestrator: CoreOrchestrator,
         storage_service: StorageService,
         voice_service: VoiceService | None = None,
+        voice_input: VoiceInputService | None = None,
         parent: QObject | None = None,
     ) -> None:
         
@@ -101,6 +103,7 @@ class NovaUiBridge(QObject):
         self._transient_errors: dict[UUID, str] = {}
         self._shutting_down = False
         self._voice_service = voice_service
+        self._voice_input = voice_input  # NUEVO
         self._unsubscribe_voice_errors = None
 
         self._active_thread: QThread | None = None
@@ -119,12 +122,16 @@ class NovaUiBridge(QObject):
         self._timer.timeout.connect(self._refresh_state)
         self._timer.start()
 
-        if voice_service is not None:
+        if voice_service is not None or voice_input is not None:
             self.voiceErrorRaised.connect(self._on_voice_error)
             self._unsubscribe_voice_errors = orchestrator.subscribe(
                 self._on_voice_event,
                 event_name=EventNames.VOICE_ERROR,
             )
+
+        if voice_input is not None:
+            self.voiceTranscriptReady.connect(self._on_voice_transcript)
+            voice_input.on_transcript = self.voiceTranscriptReady.emit
 
     def _repository(self):
         repository = self._storage_service.conversation_repository
@@ -461,18 +468,36 @@ class NovaUiBridge(QObject):
         self._orchestrator.set_state(NovaState.IDLE)
 
     def _on_voice_event(self, event: Event) -> None:
-        # Se ejecuta en el hilo de voz: solo emite una señal de Qt.
-        self.voiceErrorRaised.emit(str(event.payload.get("message", "")))
+        # Se ejecuta en un hilo de voz: solo emite una señal de Qt.
+        detail = str(event.payload.get("message", ""))
+
+        if not detail:
+            return
+
+        if event.payload.get("direction") == "input":
+            prefix = "No pude escucharte."
+        else:
+            prefix = "No pude hablar."
+
+        self.voiceErrorRaised.emit(f"{prefix} {detail}")
 
     @Slot(str)
     def _on_voice_error(self, message: str) -> None:
         if not message or self._shutting_down:
             return
 
-        self._show_error(
-            self._conversation.conversation_id,
-            f"No pude hablar. {message}",
-        )
+        self._show_error(self._conversation.conversation_id, message)
+
+    @Slot(str)
+    def _on_voice_transcript(self, text: str) -> None:
+        # Llega desde el hilo de entrada de voz; aquí ya estamos en el hilo
+        # principal. Se envía como si lo hubieras escrito.
+        self.send_message(text)
+
+    @Slot()
+    def toggle_voice_input(self) -> None:
+        if self._voice_input is not None and not self._shutting_down:
+            self._voice_input.toggle()
 
     def _get_voice_enabled(self) -> bool:
         if self._voice_service is None:
@@ -543,6 +568,9 @@ class NovaUiBridge(QObject):
         if self._unsubscribe_voice_errors is not None:
             self._unsubscribe_voice_errors()
             self._unsubscribe_voice_errors = None
+
+        if self._voice_input is not None:
+            self._voice_input.shutdown()
 
         if self._voice_service is not None:
             self._voice_service.shutdown()

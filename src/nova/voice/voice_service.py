@@ -244,7 +244,7 @@ class VoiceService:
 
         self._publish(
             EventNames.VOICE_ERROR,
-            {"code": code, "message": message},
+            {"code": code, "message": message, "direction": "output"},
         )
 
     def _publish(self, name: str, payload: dict[str, Any]) -> None:

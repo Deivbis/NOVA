@@ -11,6 +11,7 @@ from nova.voice.end_of_speech import (
     EndOfSpeechConfig,
     EndOfSpeechDetector,
 )
+from nova.voice.hotkey import GlobalHotkey, parse_hotkey
 from nova.voice.microphone import MicrophoneRecorder, RecordingResult
 from nova.voice.piper_tts import PiperTTSProvider
 from nova.voice.settings import (
@@ -27,6 +28,8 @@ __all__ = [
     "AudioData",
     "AudioPlayer",
     "Decision",
+    "GlobalHotkey",
+    "parse_hotkey",
     "EdgeTTSProvider",
     "EndOfSpeechConfig",
     "EndOfSpeechDetector",

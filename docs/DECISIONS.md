@@ -120,6 +120,18 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   se ignora si NOVA está ocupada. Los errores de entrada se publican como
   `voice.error` con `direction: "input"`.
   
+- **D-025 Tecla de voz y chat por voz.** El atajo global (por defecto
+  `Pause/Break`, configurable con `set_voice.py "hotkey=..."`) se registra
+  con `RegisterHotKey` de Windows (sin librerías) y se recibe en la app Qt
+  mediante un filtro de eventos nativos. Solo se registra si la voz está
+  activada; si otra aplicación ya usa la tecla, NOVA arranca igual y lo
+  anota en el log. Lo que dices llega al bridge por una señal de Qt (desde
+  el hilo de escucha al hilo principal) y se envía al chat como si lo
+  hubieras escrito. Los errores de entrada se muestran como "No pude
+  escucharte..." y los de salida como "No pude hablar..." (campo
+  `direction` del evento `voice.error`). Cierre: atajo, interfaz (con la
+  escucha), Core y base de datos.
+  
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:

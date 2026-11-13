@@ -16,7 +16,11 @@ import sys
 
 from nova.core import Identity
 from nova.storage.paths import default_settings_path
-from nova.voice import load_voice_settings, save_voice_settings
+from nova.voice import (
+    load_voice_settings,
+    parse_hotkey,
+    save_voice_settings,
+)
 
 
 def main() -> int:
@@ -51,6 +55,18 @@ def main() -> int:
                 return 1
 
             settings = dataclasses.replace(settings, vocabulary=words)
+
+        elif option.startswith("hotkey="):
+            hotkey = argument[7:].strip()
+
+            try:
+                parse_hotkey(hotkey)
+            except ValueError as exc:
+                print(exc)
+                return 1
+
+            settings = dataclasses.replace(settings, hotkey=hotkey)
+
         elif option == "show":
             continue
         else:

@@ -356,3 +356,16 @@ def test_shutdown_stops_speech_and_rejects_new_speech():
 
     assert player.stopped == 1
     assert service.speak("Hola") is False
+
+
+
+def test_output_errors_are_marked_with_their_direction():
+    core = create_core()
+    events = collect_events(core)
+    service = create_service(core, router=FakeRouter(fail=True))
+
+    service.speak("Hola")
+
+    error = next(e for e in events if e.name == EventNames.VOICE_ERROR)
+
+    assert error.payload["direction"] == "output"
