@@ -1,7 +1,8 @@
 """Servicio de voz de salida (SPEC-008, D-011, D-016, D-018).
 
-Habla las respuestas de NOVA fuera del hilo de la interfaz, con el estado
-SPEAKING mientras dura, eventos de voz y cancelación inmediata.
+Habla las respuestas de NOVA fuera del hilo de la interfaz, frase a frase:
+mientras suena una frase se sintetiza la siguiente. Estado SPEAKING mientras
+dura, eventos de voz y cancelación inmediata.
 
 Privacidad (SPEC-014 §9): ni el log ni los eventos contienen el texto
 hablado.
@@ -16,15 +17,49 @@ from nova.core.events import Event, EventNames
 from nova.core.identity import Identity
 from nova.core.logging_setup import get_logger
 from nova.core.orchestrator import CoreOrchestrator
-from nova.core.result import Failure
+from nova.core.result import Failure, Result
 from nova.core.state import NovaState
 from nova.voice.audio_player import AudioPlayer
+from nova.voice.contracts import AudioData
 from nova.voice.settings import VoiceSettings
+from nova.voice.speech_text import prepare_speech
 from nova.voice.tts_router import TTSRouter
 
 logger = get_logger(__name__)
 
 SHUTDOWN_JOIN_SECONDS = 2.0
+
+
+class _Prefetch:
+    """Sintetiza una frase en un hilo daemon y entrega el resultado."""
+
+    def __init__(self, work: Callable[[], Any]) -> None:
+        self._done = threading.Event()
+        self._value: Any = None
+        self._error: BaseException | None = None
+
+        threading.Thread(
+            target=self._run,
+            args=(work,),
+            name="nova-tts",
+            daemon=True,
+        ).start()
+
+    def _run(self, work: Callable[[], Any]) -> None:
+        try:
+            self._value = work()
+        except BaseException as exc:
+            self._error = exc
+        finally:
+            self._done.set()
+
+    def result(self) -> Any:
+        self._done.wait()
+
+        if self._error is not None:
+            raise self._error
+
+        return self._value
 
 
 class VoiceService:
@@ -67,13 +102,13 @@ class VoiceService:
     def speak(self, text: str) -> bool:
         """Habla el texto sin bloquear. Reemplaza lo que esté sonando.
 
-        Devuelve False si la voz está apagada, el texto está vacío o el
-        servicio ya se cerró.
+        Devuelve False si la voz está apagada, no hay nada que decir (texto
+        vacío o solo símbolos) o el servicio ya se cerró.
         """
-        message = text.strip()
+        sentences = prepare_speech(text)
 
         with self._lock:
-            if self._closed or not self._settings.enabled or not message:
+            if self._closed or not self._settings.enabled or not sentences:
                 return False
 
             self._generation += 1
@@ -89,7 +124,7 @@ class VoiceService:
 
         thread = self._thread_factory(
             target=self._run,
-            args=(generation, message, identity),
+            args=(generation, sentences, identity),
             name="nova-voice",
             daemon=True,
         )
@@ -169,41 +204,53 @@ class VoiceService:
     def _run(
         self,
         generation: int,
-        text: str,
+        sentences: list[str],
         identity: Identity,
     ) -> None:
+        started = False
+
         try:
-            with self._synthesis_lock:
+            pending = self._prefetch(generation, sentences[0], identity)
+
+            for index in range(len(sentences)):
+                synthesized = pending.result()
+
+                if self._is_stale(generation) or synthesized is None:
+                    return
+
+                # Mientras suena esta frase, se prepara la siguiente.
+                if index + 1 < len(sentences):
+                    pending = self._prefetch(
+                        generation,
+                        sentences[index + 1],
+                        identity,
+                    )
+
+                if not synthesized.success:
+                    self._publish_error(synthesized.error)
+                    return
+
+                audio = synthesized.value
+
+                if not started:
+                    started = True
+                    self._publish(
+                        EventNames.VOICE_SPEAKING_STARTED,
+                        {
+                            "provider": audio.provider,
+                            "identity": identity.value,
+                            "sentences": len(sentences),
+                        },
+                    )
+
+                played = self._player.play(audio)
+
                 if self._is_stale(generation):
                     return
 
-                synthesized = self._router.synthesize(text, identity)
-
-            if self._is_stale(generation):
-                return
-
-            if not synthesized.success:
-                self._publish_error(synthesized.error)
-                return
-
-            audio = synthesized.value
-
-            self._publish(
-                EventNames.VOICE_SPEAKING_STARTED,
-                {
-                    "provider": audio.provider,
-                    "identity": identity.value,
-                    "seconds": round(audio.duration_seconds, 1),
-                },
-            )
-
-            played = self._player.play(audio)
-
-            if self._is_stale(generation):
-                return
-
-            if not played.success:
-                self._publish_error(played.error)
+                if not played.success:
+                    self._publish_error(played.error)
+                    return
 
         except Exception:
             logger.exception("Fallo inesperado en el servicio de voz.")
@@ -218,6 +265,29 @@ class VoiceService:
 
         finally:
             self._finish(generation)
+
+    def _prefetch(
+        self,
+        generation: int,
+        sentence: str,
+        identity: Identity,
+    ) -> _Prefetch:
+        return _Prefetch(
+            lambda: self._synthesize(generation, sentence, identity)
+        )
+
+    def _synthesize(
+        self,
+        generation: int,
+        sentence: str,
+        identity: Identity,
+    ) -> Result[AudioData] | None:
+        # Una sola síntesis a la vez (espeak no es seguro entre hilos).
+        with self._synthesis_lock:
+            if self._is_stale(generation):
+                return None
+
+            return self._router.synthesize(sentence, identity)
 
     def _is_stale(self, generation: int) -> bool:
         with self._lock:

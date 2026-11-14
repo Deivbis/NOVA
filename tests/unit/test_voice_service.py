@@ -369,3 +369,140 @@ def test_output_errors_are_marked_with_their_direction():
     error = next(e for e in events if e.name == EventNames.VOICE_ERROR)
 
     assert error.payload["direction"] == "output"
+
+
+
+FIRST = "Esta es la primera frase de la respuesta."
+SECOND = "Esta es la segunda frase de la respuesta."
+THIRD = "Y esta es la tercera frase de la respuesta."
+
+
+class SignalingRouter(FakeRouter):
+    def __init__(self, signal_text):
+        super().__init__()
+        self.signal_text = signal_text
+        self.requested = threading.Event()
+
+    def synthesize(self, text, identity):
+        if text == self.signal_text:
+            self.requested.set()
+
+        return super().synthesize(text, identity)
+
+
+class FailOnSecondRouter(FakeRouter):
+    def synthesize(self, text, identity):
+        if text == SECOND:
+            self.calls.append((text, identity))
+
+            return Result.fail(code="TTS_FAILED", message="fallo simulado")
+
+        return super().synthesize(text, identity)
+
+
+def test_sentences_are_synthesized_and_played_in_order():
+    core = create_core()
+    events = collect_events(core)
+    router = FakeRouter()
+    player = FakePlayer()
+    service = create_service(core, router=router, player=player)
+
+    service.speak(f"{FIRST} {SECOND}")
+
+    started = next(
+        e for e in events if e.name == EventNames.VOICE_SPEAKING_STARTED
+    )
+
+    assert [call[0] for call in router.calls] == [FIRST, SECOND]
+    assert len(player.played) == 2
+    assert started.payload["sentences"] == 2
+    assert voice_names(events) == [
+        EventNames.VOICE_SPEAKING_STARTED,
+        EventNames.VOICE_SPEAKING_FINISHED,
+    ]
+    assert core.state == NovaState.IDLE
+
+
+def test_next_sentence_is_synthesized_while_the_current_one_plays():
+    core = create_core()
+    router = SignalingRouter(SECOND)
+    player = FakePlayer()
+    overlaps = []
+
+    def on_first_play():
+        if not overlaps:
+            overlaps.append(router.requested.wait(2))
+
+    player.on_play = on_first_play
+    service = create_service(core, router=router, player=player)
+
+    service.speak(f"{FIRST} {SECOND}")
+
+    assert overlaps == [True]
+
+
+def test_failure_in_a_later_sentence_stops_and_reports_once():
+    core = create_core()
+    events = collect_events(core)
+    player = FakePlayer()
+    service = create_service(
+        core,
+        router=FailOnSecondRouter(),
+        player=player,
+    )
+
+    service.speak(f"{FIRST} {SECOND} {THIRD}")
+
+    errors = [e for e in events if e.name == EventNames.VOICE_ERROR]
+
+    assert len(errors) == 1
+    assert errors[0].payload["code"] == "TTS_FAILED"
+    assert len(player.played) == 1
+    assert voice_names(events) == [
+        EventNames.VOICE_SPEAKING_STARTED,
+        EventNames.VOICE_ERROR,
+        EventNames.VOICE_SPEAKING_FINISHED,
+    ]
+
+
+def test_text_without_speakable_content_is_not_spoken():
+    core = create_core()
+    router = FakeRouter()
+    service = create_service(core, router=router)
+
+    assert service.speak("😊 🌞") is False
+    assert router.calls == []
+    assert core.state == NovaState.IDLE
+
+
+def test_markdown_and_emojis_are_removed_before_synthesis():
+    core = create_core()
+    router = FakeRouter()
+    service = create_service(core, router=router)
+
+    service.speak("¡Hola, **Deivbis**! 😊 Todo está listo para trabajar.")
+
+    spoken = router.calls[0][0]
+
+    assert "*" not in spoken
+    assert "😊" not in spoken
+    assert "Deivbis" in spoken
+
+
+def test_stop_cancels_the_remaining_sentences():
+    core = create_core()
+    player = FakePlayer(block=True)
+    service = create_service(
+        core,
+        player=player,
+        thread_factory=threading.Thread,
+    )
+
+    service.speak(f"{FIRST} {SECOND}")
+    assert player.started.wait(3)
+
+    service.stop()
+
+    assert wait_for(lambda: not service._thread.is_alive())
+    assert len(player.played) == 1
+    assert core.state == NovaState.IDLE

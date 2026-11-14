@@ -131,7 +131,17 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   escucharte..." y los de salida como "No pude hablar..." (campo
   `direction` del evento `voice.error`). Cierre: atajo, interfaz (con la
   escucha), Core y base de datos.
-  
+
+
+- **D-026 Habla por frases.** El texto de la respuesta se limpia para voz
+  (sin Markdown, emojis, bloques de código ni URLs; las URL se leen como
+  "enlace") y se parte en frases de al menos 20 caracteres (máximo 240,
+  cortando en comas). Mientras suena una frase se sintetiza la siguiente
+  (un hilo daemon de prefetch, una sola síntesis a la vez). `speaking_started`
+  se publica una vez por respuesta, con el número de frases. Un fallo en una
+  frase detiene la voz y se reporta una sola vez. Esto ajusta D-018: el
+  streaming del modelo de lenguaje queda fuera de la v0.3.0.
+
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:
@@ -162,3 +172,11 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   "Hey Atlas" y "Hey Asti", o una común?).
 - **P-013 Router de IA en la nube.** Previsto en DOC-022 (Gemini, Groq,
   OpenRouter), sin fase asignada en el roadmap.
+
+- **P-014 Streaming del modelo de lenguaje.** Hablar mientras el modelo aún
+  escribe exige llenar el mensaje del chat poco a poco (QML, Fase 10) y
+  definir su persistencia. Estimación: ahorra unos 3-4 s en respuestas
+  largas.
+- **P-015 Palabra clave.** Pospuesta a la v0.3.1 (requiere entrenar un
+  modelo propio; ver D-014 y P-012). La activación de la v0.3.0 es la tecla
+  global.
