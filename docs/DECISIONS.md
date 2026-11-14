@@ -48,19 +48,29 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   Con conexión: Atlas `es-MX-JorgeNeural`, Asti `es-MX-DaliaNeural`.
   Reserva (España): `davefx` y `sharvard`. Género y calidad por confirmar
   al escucharlas.
+
 - **D-013 Activación.** Primero "pulsar para hablar" con tecla global
   `Pause/Break` (configurable): una pulsación escucha, se detiene sola por
   silencio, y otra pulsación cancela o interrumpe. La palabra clave va al
   final de la fase; el modo continuo, después.
+
 - **D-014 Palabra clave.** Frases de dos palabras (los modelos de
   openWakeWord ya entrenados son solo en inglés; hay que entrenar uno propio).
-- **D-015 Reconocimiento.** faster-whisper `small`, CPU, español. Se carga
-  al primer uso y se libera tras 5 min sin hablar (configurable).
+
+- **P-015 Palabra clave (pospuesta).** Se entrena fuera del proyecto, en
+  Google Colab (CPU local: 12-24 h; Colab: ~1,5-2,5 h), un modelo por frase.
+  Candidatas: "hey atlas" y "hey asti"; "hey abi" se decide después (suena
+  muy parecido a "asti"). Al integrarla: opción desactivada por defecto,
+  silenciada mientras NOVA habla, indicador visible de escucha (Fase 10) y
+  prueba técnica previa con Python 3.13. La activación de la v0.3.0 es la
+  tecla global.
+
 - **D-016 Audio.** Nunca se guarda. Se procesa en memoria y solo la
   transcripción entra a la conversación, con las mismas reglas que el texto.
 - **D-017 Identidad.** Concepto mínimo `ATLAS`/`ASTI` que elige la voz; el
   cambio no afecta a la conversación ni a la memoria. La personalidad
   (tono, "Jefe") es la Fase 5.
+  
 - **D-018 Latencia.** Primero voz con la respuesta completa; el streaming
   de la IA con habla por frases es el último paso de la fase.
 - **D-019 Interfaz.** La Fase 4 no toca el QML: se prueba con
@@ -142,6 +152,27 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   frase detiene la voz y se reporta una sola vez. Esto ajusta D-018: el
   streaming del modelo de lenguaje queda fuera de la v0.3.0.
 
+- **D-027 Personalidad e identidad (Fase 5).** `nova/personality/`: perfiles
+  de Atlas y Asti con un system prompt corto (~140 tokens: español, "Jefe"
+  o "Señor" si el tono es formal, 1-3 frases, sin emojis ni Markdown, nunca
+  finge acciones, pide aclaración si es ambiguo). El prompt se antepone al
+  historial al enviarlo al modelo y NO se guarda en la conversación ni en
+  la base. La identidad sigue en `settings.json` (`voice.identity`); un
+  `IdentityService` la lee/cambia y publica `identity.changed`. El cambio
+  por texto o voz ("cambia a Asti", "pasa a Abi"; Abi = alias de Asti) es
+  determinista (frase completa, sin pasar por el modelo): responde con una
+  confirmación fija del personaje, hablada con la voz nueva, y la
+  conversación continúa intacta.
+
+- **D-028 Ajuste del prompt tras el demo.** El primer prompt hacía que NOVA
+  ofreciera acciones inexistentes (preparar café, buscar, agendar), se negara
+  a contar chistes por el sarcasmo y diera consejos vagos. Se añadieron:
+  "útil y concreto", sarcasmo "muy ligero y ocasional; nunca te niegues a
+  ayudar", "no ofrezcas lo que no puedes" (con la lista de lo que no hace) y
+  "ofrece solo explicar, aconsejar, ordenar ideas o redactar". El prompt pasó
+  de ~140 a ~205 tokens (límite de prueba: 1000 caracteres). Verificado a
+  mano con `scripts/demo_personality.py` y el cambio de identidad en la app.
+
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:
@@ -161,9 +192,6 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   que lanzaban un `QThread` real sin cerrarlo se reescribieron y ya no están
   en cuarentena.
 
-- **P-009 Personalidad.** Hoy no hay instrucciones de sistema: NOVA responde
-  con emojis y tono casual. Implementar Atlas/Asti, el tratamiento "Jefe" y
-  el estilo sobrio de SPEC-002/003 en la Fase 5.
 - **P-010 Markdown en la interfaz.** El QML muestra `**texto**` sin
   interpretar. Activar `textFormat: Text.MarkdownText` al integrar la
   interfaz (Fase 10).

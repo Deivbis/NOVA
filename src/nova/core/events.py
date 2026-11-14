@@ -29,3 +29,4 @@ class EventNames:
     VOICE_SPEAKING_STARTED = "voice.speaking_started"
     VOICE_SPEAKING_FINISHED = "voice.speaking_finished"
     VOICE_ERROR = "voice.error"
+    IDENTITY_CHANGED = "identity.changed"
