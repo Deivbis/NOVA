@@ -103,7 +103,7 @@ class NovaUiBridge(QObject):
         self._transient_errors: dict[UUID, str] = {}
         self._shutting_down = False
         self._voice_service = voice_service
-        self._voice_input = voice_input  # NUEVO
+        self._voice_input = voice_input
         self._unsubscribe_voice_errors = None
 
         self._active_thread: QThread | None = None
