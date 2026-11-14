@@ -2,7 +2,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from nova.core import Result
 from nova.ui.qml import application
+from nova.voice import VoiceSettings
 
 
 class FakeSignal:
@@ -64,9 +66,12 @@ def startup_mocks(monkeypatch, tmp_path):
     bridge = MagicMock()
     bridge.orbStateChanged = FakeSignal()
     bridge.orbState = "idle"
+    hotkey = MagicMock()
+    hotkey.register.return_value = Result.ok()
 
     # Registra el orden en que se cierran los componentes.
     calls = MagicMock()
+    calls.attach_mock(hotkey.unregister, "hotkey_unregister")
     calls.attach_mock(bridge.shutdown, "bridge_shutdown")
     calls.attach_mock(orchestrator.stop, "core_stop")
     calls.attach_mock(storage.close, "storage_close")
@@ -110,6 +115,21 @@ def startup_mocks(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(
         application,
+        "load_voice_settings",
+        lambda: VoiceSettings(enabled=True),
+    )
+    monkeypatch.setattr(
+        application,
+        "GlobalHotkey",
+        lambda: hotkey,
+    )
+    monkeypatch.setattr(
+        application,
+        "HotkeyFilter",
+        lambda _callback: MagicMock(),
+    )
+    monkeypatch.setattr(
+        application,
         "NovaUiBridge",
         lambda *_args: bridge,
     )
@@ -137,6 +157,7 @@ def startup_mocks(monkeypatch, tmp_path):
         "dll_directory": dll_directory,
         "orchestrator": orchestrator,
         "bridge": bridge,
+        "hotkey": hotkey,
         "calls": calls,
     }
 
@@ -203,14 +224,19 @@ def test_storage_closes_after_normal_shutdown(
     startup_mocks["dll_directory"].close.assert_called_once()
 
 
-def test_components_shut_down_in_order_ui_core_storage(
+def test_components_shut_down_in_order_hotkey_ui_core_storage(
     startup_mocks,
 ):
     application.main()
 
     names = [call[0] for call in startup_mocks["calls"].mock_calls]
 
-    assert names == ["bridge_shutdown", "core_stop", "storage_close"]
+    assert names == [
+        "hotkey_unregister",
+        "bridge_shutdown",
+        "core_stop",
+        "storage_close",
+    ]
 
 
 def test_configuration_failure_returns_error_without_starting(
@@ -231,3 +257,41 @@ def test_configuration_failure_returns_error_without_starting(
     assert result == 1
     startup_mocks["storage"].initialize.assert_not_called()
     startup_mocks["dll_directory"].close.assert_called_once()
+
+
+def test_hotkey_is_registered_when_voice_is_enabled(
+    startup_mocks,
+):
+    application.main()
+
+    startup_mocks["hotkey"].register.assert_called_once_with("pause")
+
+
+def test_hotkey_is_not_registered_when_voice_is_disabled(
+    startup_mocks,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        application,
+        "load_voice_settings",
+        lambda: VoiceSettings(enabled=False),
+    )
+
+    result = application.main()
+
+    assert result == 0
+    startup_mocks["hotkey"].register.assert_not_called()
+
+
+def test_startup_continues_when_the_hotkey_cannot_be_registered(
+    startup_mocks,
+):
+    startup_mocks["hotkey"].register.return_value = Result.fail(
+        code="HOTKEY_REGISTER_FAILED",
+        message="Otra aplicación usa el atajo.",
+    )
+
+    result = application.main()
+
+    assert result == 0
+    startup_mocks["storage"].close.assert_called_once()

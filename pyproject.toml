@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nova-personal-intelligence-platform"
-version = "0.1.0"
+version = "0.3.0"
 description = "NOVA – Personal Intelligence Platform"
 requires-python = ">=3.13,<3.14"
 dependencies = []
@@ -15,6 +15,12 @@ ui = [
 ]
 dev = [
     "pytest"
+]
+voice = [
+    "piper-tts>=1.8,<2",
+    "faster-whisper>=1.2,<2",
+    "edge-tts>=7.3,<8",
+    "sounddevice",
 ]
 
 [tool.setuptools.packages.find]

@@ -75,3 +75,9 @@ pysidedeploy-onefile.spec
 *.db-journal
 *.db-wal
 *.db-shm
+
+# Pruebas técnicas y artefactos de voz
+NOVA-spike/
+out/
+*.onnx
+*.onnx.json

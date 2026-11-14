@@ -15,14 +15,19 @@ from nova.core import (
     Command,
     Conversation,
     CoreOrchestrator,
+    Event,
+    EventNames,
+    Identity,
     NovaState,
 )
+
 from nova.core.logging_setup import get_logger
 from nova.core.requests import QueuedRequest, RequestStatus
 from nova.core.request_queue import RequestQueue
 from nova.core.result import Result
 from nova.storage.service import StorageService
 from nova.ui.state import UIState
+from nova.voice import VoiceInputService, VoiceService
 
 logger = get_logger(__name__)
 
@@ -67,13 +72,19 @@ class NovaUiBridge(QObject):
     orbStateChanged = Signal()
     conversationChanged = Signal()
     conversationsChanged = Signal()
+    voiceSettingsChanged = Signal()
+    voiceErrorRaised = Signal(str)
+    voiceTranscriptReady = Signal(str)
 
     def __init__(
         self,
         orchestrator: CoreOrchestrator,
         storage_service: StorageService,
+        voice_service: VoiceService | None = None,
+        voice_input: VoiceInputService | None = None,
         parent: QObject | None = None,
     ) -> None:
+        
         super().__init__(parent)
 
         self._orchestrator = orchestrator
@@ -91,6 +102,9 @@ class NovaUiBridge(QObject):
         self._requests_by_conversation: dict[UUID, int] = {}
         self._transient_errors: dict[UUID, str] = {}
         self._shutting_down = False
+        self._voice_service = voice_service
+        self._voice_input = voice_input  # NUEVO
+        self._unsubscribe_voice_errors = None
 
         self._active_thread: QThread | None = None
         self._active_worker: RequestWorker | None = None
@@ -107,6 +121,17 @@ class NovaUiBridge(QObject):
         self._timer.setInterval(100)
         self._timer.timeout.connect(self._refresh_state)
         self._timer.start()
+
+        if voice_service is not None or voice_input is not None:
+            self.voiceErrorRaised.connect(self._on_voice_error)
+            self._unsubscribe_voice_errors = orchestrator.subscribe(
+                self._on_voice_event,
+                event_name=EventNames.VOICE_ERROR,
+            )
+
+        if voice_input is not None:
+            self.voiceTranscriptReady.connect(self._on_voice_transcript)
+            voice_input.on_transcript = self.voiceTranscriptReady.emit
 
     def _repository(self):
         repository = self._storage_service.conversation_repository
@@ -272,8 +297,7 @@ class NovaUiBridge(QObject):
         request = self._request_queue.dequeue()
 
         if request is None:
-            if self._orchestrator.state != NovaState.ERROR:
-                self._orchestrator.set_state(NovaState.IDLE)
+            self._settle_to_idle()
             return
 
         request.status = RequestStatus.RUNNING
@@ -382,6 +406,9 @@ class NovaUiBridge(QObject):
         if request.status == RequestStatus.COMPLETED:
             self._orchestrator.set_state(NovaState.SPEAKING)
 
+            if self._voice_service is not None:
+                self._voice_service.speak(result.value)
+
     @Slot()
     def _on_worker_thread_finished(self) -> None:
 
@@ -402,7 +429,7 @@ class NovaUiBridge(QObject):
             else:
                 self._enter_processing()
         elif self._request_queue.is_empty:
-            self._orchestrator.set_state(NovaState.IDLE)
+            self._settle_to_idle()
         else:
             self._orchestrator.set_state(NovaState.PROCESSING)
 
@@ -428,6 +455,108 @@ class NovaUiBridge(QObject):
         if self._conversation.conversation_id == conversation_id:
             self.conversationChanged.emit()
 
+    def _settle_to_idle(self) -> None:
+        if self._orchestrator.state == NovaState.ERROR:
+            return
+
+        if (
+            self._voice_service is not None
+            and self._voice_service.is_speaking
+        ):
+            return
+
+        self._orchestrator.set_state(NovaState.IDLE)
+
+    def _on_voice_event(self, event: Event) -> None:
+        # Se ejecuta en un hilo de voz: solo emite una señal de Qt.
+        detail = str(event.payload.get("message", ""))
+
+        if not detail:
+            return
+
+        if event.payload.get("direction") == "input":
+            prefix = "No pude escucharte."
+        else:
+            prefix = "No pude hablar."
+
+        self.voiceErrorRaised.emit(f"{prefix} {detail}")
+
+    @Slot(str)
+    def _on_voice_error(self, message: str) -> None:
+        if not message or self._shutting_down:
+            return
+
+        self._show_error(self._conversation.conversation_id, message)
+
+    @Slot(str)
+    def _on_voice_transcript(self, text: str) -> None:
+        # Llega desde el hilo de entrada de voz; aquí ya estamos en el hilo
+        # principal. Se envía como si lo hubieras escrito.
+        self.send_message(text)
+
+    @Slot()
+    def toggle_voice_input(self) -> None:
+        if self._voice_input is not None and not self._shutting_down:
+            self._voice_input.toggle()
+
+    def _get_voice_enabled(self) -> bool:
+        if self._voice_service is None:
+            return False
+
+        return bool(self._voice_service.settings.enabled)
+
+    voiceEnabled = Property(
+        bool,
+        _get_voice_enabled,
+        notify=voiceSettingsChanged,
+    )
+
+    def _get_voice_identity(self) -> str:
+        if self._voice_service is None:
+            return Identity.ATLAS.value
+
+        return self._voice_service.settings.identity.value
+
+    voiceIdentity = Property(
+        str,
+        _get_voice_identity,
+        notify=voiceSettingsChanged,
+    )
+
+    @Slot()
+    def stop_speaking(self) -> None:
+        if self._voice_service is not None:
+            self._voice_service.stop()
+
+    @Slot(bool)
+    def set_voice_enabled(self, enabled: bool) -> None:
+        if self._voice_service is None:
+            return
+
+        self._voice_service.update_settings(enabled=enabled)
+        self.voiceSettingsChanged.emit()
+
+    @Slot(str)
+    def set_voice_identity(self, identity: str) -> None:
+        if self._voice_service is None:
+            return
+
+        try:
+            value = Identity(identity)
+        except ValueError:
+            return
+
+        self._voice_service.update_settings(identity=value)
+        self.voiceSettingsChanged.emit()
+
+    @Slot(bool)
+    def set_online_voice(self, enabled: bool) -> None:
+        if self._voice_service is None:
+            return
+
+        self._voice_service.update_settings(prefer_online=enabled)
+        self.voiceSettingsChanged.emit()
+
     def shutdown(self, wait_ms: int = SHUTDOWN_WAIT_MS) -> None:
         """Stop the bridge: no timer, no queued work, no running thread."""
         if self._shutting_down:
@@ -435,6 +564,16 @@ class NovaUiBridge(QObject):
 
         self._shutting_down = True
         self._timer.stop()
+
+        if self._unsubscribe_voice_errors is not None:
+            self._unsubscribe_voice_errors()
+            self._unsubscribe_voice_errors = None
+
+        if self._voice_input is not None:
+            self._voice_input.shutdown()
+
+        if self._voice_service is not None:
+            self._voice_service.shutdown()
 
         while self._request_queue.dequeue() is not None:
             pass

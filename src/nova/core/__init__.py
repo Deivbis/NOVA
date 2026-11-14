@@ -18,6 +18,7 @@ from nova.core.state import (
     OrbState,
 )
 from nova.core.state_manager import StateManager
+from nova.core.identity import Identity
 
 __all__ = [
     "Availability",
@@ -31,6 +32,7 @@ __all__ = [
     "Event",
     "EventBus",
     "EventNames",
+    "Identity",
     "CoreOrchestrator",
     "QueuedRequest",
     "RequestStatus",

@@ -41,6 +41,107 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   a 4 s en un Ryzen 5 8600G solo con CPU) y `think=false` no lo desactiva.
   La capa de IA además descarta cualquier bloque `<think>` de la respuesta.
 
+- **D-011 Voz de salida.** Piper por defecto (100 % local, offline-first);
+  edge-tts como "voz online" opcional, apagada por defecto (envía el texto
+  a servidores de Microsoft). Nota: piper-tts 1.3+ es GPL-3.0.
+- **D-012 Voces.** Sin conexión: Atlas `es_MX-ald`, Asti `es_MX-claude`.
+  Con conexión: Atlas `es-MX-JorgeNeural`, Asti `es-MX-DaliaNeural`.
+  Reserva (España): `davefx` y `sharvard`. Género y calidad por confirmar
+  al escucharlas.
+- **D-013 Activación.** Primero "pulsar para hablar" con tecla global
+  `Pause/Break` (configurable): una pulsación escucha, se detiene sola por
+  silencio, y otra pulsación cancela o interrumpe. La palabra clave va al
+  final de la fase; el modo continuo, después.
+- **D-014 Palabra clave.** Frases de dos palabras (los modelos de
+  openWakeWord ya entrenados son solo en inglés; hay que entrenar uno propio).
+- **D-015 Reconocimiento.** faster-whisper `small`, CPU, español. Se carga
+  al primer uso y se libera tras 5 min sin hablar (configurable).
+- **D-016 Audio.** Nunca se guarda. Se procesa en memoria y solo la
+  transcripción entra a la conversación, con las mismas reglas que el texto.
+- **D-017 Identidad.** Concepto mínimo `ATLAS`/`ASTI` que elige la voz; el
+  cambio no afecta a la conversación ni a la memoria. La personalidad
+  (tono, "Jefe") es la Fase 5.
+- **D-018 Latencia.** Primero voz con la respuesta completa; el streaming
+  de la IA con habla por frases es el último paso de la fase.
+- **D-019 Interfaz.** La Fase 4 no toca el QML: se prueba con
+  `scripts/demo_voice.py` y funciones en el bridge. El micrófono en la
+  interfaz llega con la Fase 10.
+
+- **D-020 Resultado de la prueba técnica de voz.** Funcionan en Python 3.13
+  / Windows: piper-tts 1.8.0, faster-whisper 1.2.1, ctranslate2 4.9.0,
+  edge-tts 7.3.1 y onnxruntime 1.31.1. STT `small` en CPU: 1,1 s para 6 s de
+  audio. Micrófono: dispositivo predeterminado a 16 kHz mono. Voces
+  confirmadas por oído: Piper (sin conexión) y edge-tts (con conexión). Las
+  voces de Piper se guardan en `%APPDATA%/NOVA/voices`. Whisper falla con
+  nombres propios: se sesgará el vocabulario (`hotwords`) con "Atlas",
+  "Asti", "NOVA" y el nombre del usuario. Un fallo de micrófono (MME error
+  1) apareció en un entorno anterior y desapareció al unificar entornos
+  (causa no determinada).
+- **D-021 Selector de voz.** `TTSRouter` usa la voz local por defecto; la
+  voz en línea solo si está activada y la conectividad no es OFFLINE. Si
+  falla, vuelve a la local y no reintenta durante 60 s. Nunca registra el
+  texto hablado.
+
+- **D-022 Voz de salida real y preferencias.** `PiperTTSProvider` carga
+  cada voz una sola vez (carga perezosa) desde `%APPDATA%/NOVA/voices`;
+  `EdgeTTSProvider` decodifica el MP3 con PyAV y tiene un tope de 15 s;
+  `SoundDevicePlayer` reproduce por la salida predeterminada. Ningún módulo
+  importa las librerías de audio al arrancar. Las preferencias de voz viven
+  en `%APPDATA%/NOVA/settings.json` (sección `voice`: `enabled`,
+  `identity`, `prefer_online`, `hotkey`); si falta o es inválido se usan los
+  valores por defecto, con la voz apagada.
+
+- **D-023 Servicio de voz.** `VoiceService` habla fuera del hilo de la UI
+  (hilo daemon). `speak()` activa `SPEAKING` de inmediato y reemplaza lo que
+  esté sonando; `stop()` corta el audio al instante; solo corre una
+  síntesis a la vez (espeak no es seguro entre hilos). Publica
+  `voice.speaking_started`, `voice.speaking_finished` (con `cancelled`) y
+  `voice.error`, solo con metadatos. Un fallo de voz NO pone el Core en
+  `ERROR`: se registra el código y el bridge muestra una burbuja transitoria
+  (el texto de la respuesta ya está en el chat). El bridge no vuelve a
+  `IDLE` mientras suena la voz y expone `voiceEnabled`, `voiceIdentity`,
+  `stop_speaking`, `set_voice_enabled`, `set_voice_identity` y
+  `set_online_voice` para la interfaz de la Fase 10. Mientras tanto, las
+  preferencias se cambian con `scripts/set_voice.py`.
+
+
+- **D-024 Entrada de voz.** Fin de frase por energía (RMS en bloques de
+  100 ms): voz tras 0,3 s seguidos sobre el umbral, fin tras 1,2 s de
+  silencio, "no detecté voz" a los 6 s y corte a los 20 s. El umbral es
+  adaptativo, entre 0,008 y 0,025. Limitación conocida: en una sala con
+  ruido de fondo por encima de ~0,025 de nivel no distingue la voz y graba
+  hasta el máximo; los parámetros están en `EndOfSpeechConfig`.
+  Transcripción con faster-whisper `small`, VAD y `beam_size=1`; el
+  vocabulario (`settings.vocabulary`, por defecto Atlas, Asti, NOVA; se
+  amplía con `scripts/set_voice.py "vocab=..."`) se pasa como `hotwords`.
+  `VoiceInputService`: LISTENING → PROCESSING; eventos de escucha solo con
+  metadatos (la transcripción viaja por callback, nunca por evento ni log);
+  una pulsación cancela la escucha, interrumpe la voz o empieza a escuchar;
+  se ignora si NOVA está ocupada. Los errores de entrada se publican como
+  `voice.error` con `direction: "input"`.
+  
+- **D-025 Tecla de voz y chat por voz.** El atajo global (por defecto
+  `Pause/Break`, configurable con `set_voice.py "hotkey=..."`) se registra
+  con `RegisterHotKey` de Windows (sin librerías) y se recibe en la app Qt
+  mediante un filtro de eventos nativos. Solo se registra si la voz está
+  activada; si otra aplicación ya usa la tecla, NOVA arranca igual y lo
+  anota en el log. Lo que dices llega al bridge por una señal de Qt (desde
+  el hilo de escucha al hilo principal) y se envía al chat como si lo
+  hubieras escrito. Los errores de entrada se muestran como "No pude
+  escucharte..." y los de salida como "No pude hablar..." (campo
+  `direction` del evento `voice.error`). Cierre: atajo, interfaz (con la
+  escucha), Core y base de datos.
+
+
+- **D-026 Habla por frases.** El texto de la respuesta se limpia para voz
+  (sin Markdown, emojis, bloques de código ni URLs; las URL se leen como
+  "enlace") y se parte en frases de al menos 20 caracteres (máximo 240,
+  cortando en comas). Mientras suena una frase se sintetiza la siguiente
+  (un hilo daemon de prefetch, una sola síntesis a la vez). `speaking_started`
+  se publica una vez por respuesta, con el número de frases. Un fallo en una
+  frase detiene la voz y se reporta una sola vez. Esto ajusta D-018: el
+  streaming del modelo de lenguaje queda fuera de la v0.3.0.
+
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:
@@ -67,6 +168,15 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   interpretar. Activar `textFormat: Text.MarkdownText` al integrar la
   interfaz (Fase 10).
 
-- **P-011 Parámetros de IA en la configuración.** El modelo, la URL de
-  Ollama y el timeout están en el código (`LocalAIService`). Moverlos a una
-  sección `[ai]` de `default.toml`.
+- **P-012 Palabra clave.** Falta decidir las frases (¿una por identidad,
+  "Hey Atlas" y "Hey Asti", o una común?).
+- **P-013 Router de IA en la nube.** Previsto en DOC-022 (Gemini, Groq,
+  OpenRouter), sin fase asignada en el roadmap.
+
+- **P-014 Streaming del modelo de lenguaje.** Hablar mientras el modelo aún
+  escribe exige llenar el mensaje del chat poco a poco (QML, Fase 10) y
+  definir su persistencia. Estimación: ahorra unos 3-4 s en respuestas
+  largas.
+- **P-015 Palabra clave.** Pospuesta a la v0.3.1 (requiere entrenar un
+  modelo propio; ver D-014 y P-012). La activación de la v0.3.0 es la tecla
+  global.

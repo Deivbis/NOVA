@@ -24,3 +24,8 @@ class EventNames:
     STATE_CHANGED = "state.changed"
     CORE_STARTED = "core.started"
     CORE_STOPPED = "core.stopped"
+    VOICE_LISTENING_STARTED = "voice.listening_started"
+    VOICE_LISTENING_STOPPED = "voice.listening_stopped"
+    VOICE_SPEAKING_STARTED = "voice.speaking_started"
+    VOICE_SPEAKING_FINISHED = "voice.speaking_finished"
+    VOICE_ERROR = "voice.error"
