@@ -43,3 +43,10 @@ def test_profiles_differ():
 
     assert atlas.system_prompt != asti.system_prompt
     assert atlas.confirmation != asti.confirmation
+
+
+
+def test_prompts_forbid_offering_actions_that_do_not_exist():
+    for profile in PROFILES.values():
+        assert "ofrezcas lo que no puedes" in profile.system_prompt
+        assert "nunca te niegues a ayudar" in profile.system_prompt

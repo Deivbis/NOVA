@@ -164,6 +164,15 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   confirmación fija del personaje, hablada con la voz nueva, y la
   conversación continúa intacta.
 
+- **D-028 Ajuste del prompt tras el demo.** El primer prompt hacía que NOVA
+  ofreciera acciones inexistentes (preparar café, buscar, agendar), se negara
+  a contar chistes por el sarcasmo y diera consejos vagos. Se añadieron:
+  "útil y concreto", sarcasmo "muy ligero y ocasional; nunca te niegues a
+  ayudar", "no ofrezcas lo que no puedes" (con la lista de lo que no hace) y
+  "ofrece solo explicar, aconsejar, ordenar ideas o redactar". El prompt pasó
+  de ~140 a ~205 tokens (límite de prueba: 1000 caracteres). Verificado a
+  mano con `scripts/demo_personality.py` y el cambio de identidad en la app.
+
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:
