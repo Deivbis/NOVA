@@ -48,19 +48,29 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   Con conexión: Atlas `es-MX-JorgeNeural`, Asti `es-MX-DaliaNeural`.
   Reserva (España): `davefx` y `sharvard`. Género y calidad por confirmar
   al escucharlas.
+
 - **D-013 Activación.** Primero "pulsar para hablar" con tecla global
   `Pause/Break` (configurable): una pulsación escucha, se detiene sola por
   silencio, y otra pulsación cancela o interrumpe. La palabra clave va al
   final de la fase; el modo continuo, después.
+
 - **D-014 Palabra clave.** Frases de dos palabras (los modelos de
   openWakeWord ya entrenados son solo en inglés; hay que entrenar uno propio).
-- **D-015 Reconocimiento.** faster-whisper `small`, CPU, español. Se carga
-  al primer uso y se libera tras 5 min sin hablar (configurable).
+
+- **P-015 Palabra clave (pospuesta).** Se entrena fuera del proyecto, en
+  Google Colab (CPU local: 12-24 h; Colab: ~1,5-2,5 h), un modelo por frase.
+  Candidatas: "hey atlas" y "hey asti"; "hey abi" se decide después (suena
+  muy parecido a "asti"). Al integrarla: opción desactivada por defecto,
+  silenciada mientras NOVA habla, indicador visible de escucha (Fase 10) y
+  prueba técnica previa con Python 3.13. La activación de la v0.3.0 es la
+  tecla global.
+
 - **D-016 Audio.** Nunca se guarda. Se procesa en memoria y solo la
   transcripción entra a la conversación, con las mismas reglas que el texto.
 - **D-017 Identidad.** Concepto mínimo `ATLAS`/`ASTI` que elige la voz; el
   cambio no afecta a la conversación ni a la memoria. La personalidad
   (tono, "Jefe") es la Fase 5.
+  
 - **D-018 Latencia.** Primero voz con la respuesta completa; el streaming
   de la IA con habla por frases es el último paso de la fase.
 - **D-019 Interfaz.** La Fase 4 no toca el QML: se prueba con
