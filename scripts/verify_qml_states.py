@@ -1,11 +1,14 @@
+
 from pathlib import Path
 import os
 import sys
+import tempfile
 
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
+from nova.storage.service import StorageService
 from nova.core import CoreOrchestrator, NovaState
 from nova.ui.qml.bridge import NovaUiBridge
 
@@ -27,69 +30,86 @@ def main() -> int:
         / "PySide6"
     )
 
-    os.add_dll_directory(str(pyside_path))
+    dll_directory = os.add_dll_directory(str(pyside_path))
 
     app = QGuiApplication(sys.argv)
 
-    orchestrator = CoreOrchestrator()
-    bridge = NovaUiBridge(orchestrator)
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        database_path = Path(temporary_directory) / "nova.db"
 
-    engine = QQmlApplicationEngine()
+        storage_service = StorageService(database_path)
+        bridge = None
 
-    engine.rootContext().setContextProperty(
-        "novaBridge",
-        bridge,
-    )
+        try:
+            storage_service.initialize()
 
-    qml_path = Path(__file__).parent.parent / "src" / "nova" / "ui" / "qml"
+            orchestrator = CoreOrchestrator()
 
-    engine.load((qml_path / "Main.qml").as_uri())
-    engine.load((qml_path / "PermanentOrb.qml").as_uri())
+            bridge = NovaUiBridge(
+                orchestrator,
+                storage_service,
+            )
 
-    if not engine.rootObjects():
-        print("❌ No se pudieron cargar las ventanas QML.")
-        return 1
+            engine = QQmlApplicationEngine()
 
-    index = 0
+            engine.rootContext().setContextProperty(
+                "novaBridge",
+                bridge,
+            )
 
-    def next_state() -> None:
-        nonlocal index
+            qml_path = (
+                Path(__file__).parent.parent
+                / "src"
+                / "nova"
+                / "ui"
+                / "qml"
+            )
 
-        state = STATES[index]
-        orchestrator.set_state(state)
-        bridge._refresh_state()
+            engine.load((qml_path / "Main.qml").as_uri())
+            engine.load((qml_path / "PermanentOrb.qml").as_uri())
 
-        print(
-            f"Estado Core: {state.value:<20} "
-            f"→ Orbe: {bridge.orbState}"
-        )
+            if not engine.rootObjects():
+                print("ERROR: No se pudieron cargar los archivos QML.")
+                return 1
 
-        index += 1
+            print("Interfaz QML cargada correctamente.")
 
-        if index >= len(STATES):
-            finish_timer.start()
-        else:
-            state_timer.start()
+            def verify_states(index: int = 0) -> None:
+                if index >= len(STATES):
+                    print("Verificacion de estados finalizada.")
+                    app.quit()
+                    return
 
-    def finish() -> None:
-        orchestrator.set_state(NovaState.IDLE)
-        bridge._refresh_state()
+                state = STATES[index]
 
-        print("Estado final: idle → orbe: idle")
-        print("✅ Prueba de estados QML completada.")
-        app.quit()
+                print(f"Verificando estado: {state.name}")
 
-    state_timer = QTimer()
-    state_timer.setSingleShot(True)
-    state_timer.timeout.connect(next_state)
+                changed = orchestrator.set_state(state)
 
-    finish_timer = QTimer()
-    finish_timer.setSingleShot(True)
-    finish_timer.timeout.connect(finish)
+                if not changed:
+                    print(
+                        f"ERROR: Transición no permitida hacia {state.name}. "
+                        f"Estado actual: {orchestrator.state.name}"
+                    )
+                    app.quit()
+                    return
 
-    state_timer.start(1000)
+                QTimer.singleShot(
+                    1000,
+                    lambda: verify_states(index + 1),
+                )
 
-    return app.exec()
+            QTimer.singleShot(0, verify_states)
+
+            return app.exec()
+
+        finally:
+            if bridge is not None:
+                bridge.shutdown()
+
+            storage_service.close()
+
+    dll_directory.close()
 
 
 if __name__ == "__main__":
