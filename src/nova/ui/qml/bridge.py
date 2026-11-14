@@ -10,7 +10,6 @@ from PySide6.QtCore import (
     Signal,
     Slot,
 )
-
 from nova.core import (
     Command,
     Conversation,
@@ -20,7 +19,12 @@ from nova.core import (
     Identity,
     NovaState,
 )
-
+from nova.personality import (
+    IdentityService,
+    build_messages,
+    parse_identity_command,
+    profile_for,
+)
 from nova.core.logging_setup import get_logger
 from nova.core.requests import QueuedRequest, RequestStatus
 from nova.core.request_queue import RequestQueue
@@ -75,6 +79,7 @@ class NovaUiBridge(QObject):
     voiceSettingsChanged = Signal()
     voiceErrorRaised = Signal(str)
     voiceTranscriptReady = Signal(str)
+    identityChanged = Signal()
 
     def __init__(
         self,
@@ -82,6 +87,7 @@ class NovaUiBridge(QObject):
         storage_service: StorageService,
         voice_service: VoiceService | None = None,
         voice_input: VoiceInputService | None = None,
+        identity_service: IdentityService | None = None,
         parent: QObject | None = None,
     ) -> None:
         
@@ -104,6 +110,7 @@ class NovaUiBridge(QObject):
         self._shutting_down = False
         self._voice_service = voice_service
         self._voice_input = voice_input
+        self._identity_service = identity_service
         self._unsubscribe_voice_errors = None
 
         self._active_thread: QThread | None = None
@@ -262,9 +269,15 @@ class NovaUiBridge(QObject):
             self._reload_conversation(conversation_id)
             raise
 
+        target = parse_identity_command(message)
+
+        if target is not None and self._identity_service is not None:
+            self._switch_identity(conversation_id, target)
+            return
+
         command = Command(
             name="chat.generate",
-            payload={"messages": self._conversation.history()},
+            payload={"messages": self._build_messages()},
             source="user",
         )
 
@@ -454,6 +467,45 @@ class NovaUiBridge(QObject):
 
         if self._conversation.conversation_id == conversation_id:
             self.conversationChanged.emit()
+
+    def _build_messages(self) -> list[dict[str, str]]:
+        history = self._conversation.history()
+
+        if self._identity_service is None:
+            return history
+
+        return build_messages(self._identity_service.current, history)
+
+    def _switch_identity(
+        self,
+        conversation_id: UUID,
+        target: Identity,
+    ) -> None:
+        # Determinista: no pasa por el modelo y no pierde el contexto.
+        self._identity_service.switch(target)
+
+        reply = profile_for(target).confirmation
+        assistant_message = self._conversation.add_assistant_message(reply)
+        self._repository().add_message(conversation_id, assistant_message)
+
+        self.conversationChanged.emit()
+        self.conversationsChanged.emit()
+        self.identityChanged.emit()
+
+        if self._voice_service is not None:
+            self._voice_service.speak(reply)
+
+    def _get_active_identity(self) -> str:
+        if self._identity_service is None:
+            return Identity.ATLAS.value
+
+        return self._identity_service.current.value
+
+    activeIdentity = Property(
+        str,
+        _get_active_identity,
+        notify=identityChanged,
+    )
 
     def _settle_to_idle(self) -> None:
         if self._orchestrator.state == NovaState.ERROR:

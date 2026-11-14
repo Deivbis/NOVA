@@ -152,6 +152,18 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   frase detiene la voz y se reporta una sola vez. Esto ajusta D-018: el
   streaming del modelo de lenguaje queda fuera de la v0.3.0.
 
+- **D-027 Personalidad e identidad (Fase 5).** `nova/personality/`: perfiles
+  de Atlas y Asti con un system prompt corto (~140 tokens: español, "Jefe"
+  o "Señor" si el tono es formal, 1-3 frases, sin emojis ni Markdown, nunca
+  finge acciones, pide aclaración si es ambiguo). El prompt se antepone al
+  historial al enviarlo al modelo y NO se guarda en la conversación ni en
+  la base. La identidad sigue en `settings.json` (`voice.identity`); un
+  `IdentityService` la lee/cambia y publica `identity.changed`. El cambio
+  por texto o voz ("cambia a Asti", "pasa a Abi"; Abi = alias de Asti) es
+  determinista (frase completa, sin pasar por el modelo): responde con una
+  confirmación fija del personaje, hablada con la voz nueva, y la
+  conversación continúa intacta.
+
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:
@@ -171,9 +183,6 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   que lanzaban un `QThread` real sin cerrarlo se reescribieron y ya no están
   en cuarentena.
 
-- **P-009 Personalidad.** Hoy no hay instrucciones de sistema: NOVA responde
-  con emojis y tono casual. Implementar Atlas/Asti, el tratamiento "Jefe" y
-  el estilo sobrio de SPEC-002/003 en la Fase 5.
 - **P-010 Markdown en la interfaz.** El QML muestra `**texto**` sin
   interpretar. Activar `textFormat: Text.MarkdownText` al integrar la
   interfaz (Fase 10).

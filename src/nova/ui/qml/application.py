@@ -30,6 +30,7 @@ from nova.voice import (
     load_voice_settings,
     save_voice_settings,
 )
+from nova.personality import IdentityService
 
 logger = get_logger(__name__)
 
@@ -153,12 +154,20 @@ def main() -> int:
                 ),
                 voice_output=voice_service,
             )
+            identity_service = IdentityService(
+                core=orchestrator,
+                get_identity=lambda: voice_service.settings.identity,
+                set_identity=lambda identity: voice_service.update_settings(
+                    identity=identity
+                ),
+            )
 
             bridge = NovaUiBridge(
                 orchestrator,
                 storage_service,
                 voice_service,
                 voice_input,
+                identity_service,
             )
 
             engine = QQmlApplicationEngine()
