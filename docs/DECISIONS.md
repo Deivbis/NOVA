@@ -233,3 +233,7 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   convenga.
 - **P-022 Hora y fecha reales.** Capacidad local sin modelo (Fase 8); hoy
   NOVA dice que no sabe la hora.
+
+- **P-023 Memoria sin el modelo.** Las órdenes de memoria funcionan con
+  Ollama apagado; responder una pregunta libre sobre un recuerdo ("¿cómo me
+  llamo?") requiere el modelo local.
