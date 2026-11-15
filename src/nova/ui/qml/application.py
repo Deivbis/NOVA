@@ -13,6 +13,7 @@ from nova.storage.paths import (
     default_logs_dir,
     default_voices_dir,
 )
+from nova.memory import MemoryService
 from nova.storage.service import StorageService
 from nova.ui.qml.bridge import NovaUiBridge
 from nova.ui.qml.hotkey_filter import HotkeyFilter
@@ -161,6 +162,18 @@ def main() -> int:
                     identity=identity
                 ),
             )
+            memory_service = MemoryService(storage_service.memory_repository)
+            orchestrator.capabilities.register(
+                Capability(
+                    id="memory",
+                    name="Memoria",
+                    description=(
+                        "Recuerdos que el usuario ordena guardar "
+                        "(SQLite local)."
+                    ),
+                    provider="sqlite",
+                )
+            )
 
             bridge = NovaUiBridge(
                 orchestrator,
@@ -168,6 +181,7 @@ def main() -> int:
                 voice_service,
                 voice_input,
                 identity_service,
+                memory_service,
             )
 
             engine = QQmlApplicationEngine()

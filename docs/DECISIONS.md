@@ -173,6 +173,21 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   de ~140 a ~205 tokens (límite de prueba: 1000 caracteres). Verificado a
   mano con `scripts/demo_personality.py` y el cambio de identidad en la app.
 
+- **D-029 Memoria persistente (Fase 6).** Solo se guarda lo que el usuario
+  ordena ("recuerda que...", "anota...", "recuerda en Música que...").
+  Tablas `memories` y `audit_logs` (migración v003); la auditoría registra
+  acción, id y categoría, nunca el contenido. Categorías de SPEC-005 más
+  "General" (añadida por no estar en la spec), asignadas por palabras clave o
+  indicadas por el usuario. "Olvidar" desactiva (recuperable); el borrado
+  definitivo solo existe en `scripts/memory.py purge --yes`. Las órdenes
+  ("recuerda...", "olvida...", "qué recuerdas...") son deterministas: no
+  pasan por el modelo y responden con una frase fija. Con varias
+  coincidencias, "olvida X" pide más detalle en vez de borrar. En cada turno
+  se seleccionan por coincidencia de palabras hasta 5 recuerdos (600
+  caracteres) y se añaden al final del prompt de sistema como "Recuerdos
+  autorizados"; si nada coincide, no se envía nada. Acceso solo a través de
+  `MemoryService` (SPEC-014 §17).
+
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:
@@ -208,3 +223,13 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
 - **P-015 Palabra clave.** Pospuesta a la v0.3.1 (requiere entrenar un
   modelo propio; ver D-014 y P-012). La activación de la v0.3.0 es la tecla
   global.
+
+- **P-019 Olvidar no borra el chat.** Un recuerdo olvidado sigue visible en
+  la conversación donde se ordenó guardarlo; borrar esa conversación sí lo
+  elimina.
+- **P-020 Recuerdos y nube.** Los recuerdos solo se envían al modelo local;
+  el router de nube (P-013) debe excluirlos por regla.
+- **P-021 Clasificación.** Por palabras clave; mejorar con el modelo cuando
+  convenga.
+- **P-022 Hora y fecha reales.** Capacidad local sin modelo (Fase 8); hoy
+  NOVA dice que no sabe la hora.
