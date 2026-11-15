@@ -6,6 +6,7 @@ from nova.storage.migrations.runner import MigrationRunner
 from nova.storage.migrations.versions import (
     v001_initial,
     v002_conversations,
+    v003_memories,
 )
 
 
@@ -166,5 +167,26 @@ def test_failed_migration_rolls_back_changes_and_closes_connection(
 
     assert table is None
     assert version is None
+
+    connection.close()
+
+
+
+def test_memory_migration_creates_tables(tmp_path) -> None:
+    connection = sqlite3.connect(tmp_path / "nova.db")
+
+    v001_initial.apply(connection)
+    v002_conversations.apply(connection)
+    v003_memories.apply(connection)
+
+    tables = {
+        row[0]
+        for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        )
+    }
+
+    assert "memories" in tables
+    assert "audit_logs" in tables
 
     connection.close()

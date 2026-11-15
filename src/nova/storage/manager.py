@@ -8,8 +8,8 @@ from nova.storage.migrations.runner import MigrationRunner
 from nova.storage.migrations.versions import (
     v001_initial,
     v002_conversations,
+    v003_memories,
 )
-
 
 class StorageManager:
     """Coordinates NOVA storage initialization and shutdown."""
@@ -17,6 +17,7 @@ class StorageManager:
     MIGRATIONS = (
         v001_initial,
         v002_conversations,
+        v003_memories,
     )
 
     def __init__(self, database_path: Path) -> None:

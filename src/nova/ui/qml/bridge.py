@@ -25,6 +25,11 @@ from nova.personality import (
     parse_identity_command,
     profile_for,
 )
+from nova.memory import (
+    MemoryCommandHandler,
+    MemoryService,
+    parse_memory_command,
+)
 from nova.core.logging_setup import get_logger
 from nova.core.requests import QueuedRequest, RequestStatus
 from nova.core.request_queue import RequestQueue
@@ -88,6 +93,7 @@ class NovaUiBridge(QObject):
         voice_service: VoiceService | None = None,
         voice_input: VoiceInputService | None = None,
         identity_service: IdentityService | None = None,
+        memory_service: MemoryService | None = None,
         parent: QObject | None = None,
     ) -> None:
         
@@ -111,6 +117,12 @@ class NovaUiBridge(QObject):
         self._voice_service = voice_service
         self._voice_input = voice_input
         self._identity_service = identity_service
+        self._memory_service = memory_service
+        self._memory_handler = (
+            MemoryCommandHandler(memory_service)
+            if memory_service is not None
+            else None
+        )
         self._unsubscribe_voice_errors = None
 
         self._active_thread: QThread | None = None
@@ -274,7 +286,16 @@ class NovaUiBridge(QObject):
         if target is not None and self._identity_service is not None:
             self._switch_identity(conversation_id, target)
             return
+        
+        memory_command = parse_memory_command(message)
 
+        if memory_command is not None and self._memory_handler is not None:
+            self._reply_locally(
+                conversation_id,
+                self._memory_handler.handle(memory_command),
+            )
+            return
+        
         command = Command(
             name="chat.generate",
             payload={"messages": self._build_messages()},
@@ -474,7 +495,21 @@ class NovaUiBridge(QObject):
         if self._identity_service is None:
             return history
 
-        return build_messages(self._identity_service.current, history)
+        memories: list[str] = []
+
+        if self._memory_service is not None and history:
+            memories = [
+                item.content
+                for item in self._memory_service.relevant_for(
+                    history[-1]["content"]
+                )
+            ]
+
+        return build_messages(
+            self._identity_service.current,
+            history,
+            memories,
+        )
 
     def _switch_identity(
         self,
@@ -491,6 +526,17 @@ class NovaUiBridge(QObject):
         self.conversationChanged.emit()
         self.conversationsChanged.emit()
         self.identityChanged.emit()
+
+        if self._voice_service is not None:
+            self._voice_service.speak(reply)
+            
+    def _reply_locally(self, conversation_id: UUID, reply: str) -> None:
+        # Respuesta determinista (sin modelo): órdenes de memoria.
+        assistant_message = self._conversation.add_assistant_message(reply)
+        self._repository().add_message(conversation_id, assistant_message)
+
+        self.conversationChanged.emit()
+        self.conversationsChanged.emit()
 
         if self._voice_service is not None:
             self._voice_service.speak(reply)
