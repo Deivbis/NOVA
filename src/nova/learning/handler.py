@@ -8,28 +8,7 @@ from nova.learning.service import (
     LearningService,
 )
 from nova.memory.text import normalize
-
-_YES_START = {
-    "si", "claro", "dale", "ok", "vale", "confirmo", "correcto",
-    "guardalo", "recuerdalo", "afirmativo", "adelante", "perfecto",
-}
-_NO_START = {"no", "nunca", "negativo", "descartalo", "nada"}
-
-
-def _yes_no(text: str) -> bool | None:
-    """Tolerante a lo que devuelve el STT: «Sí, guárdalo.» → True."""
-    words = [w.strip(".,!¡¿?") for w in normalize(text).split()]
-
-    if not words:
-        return None
-
-    if words[0] in _NO_START:
-        return False
-
-    if words[0] in _YES_START or words[:2] == ["por", "supuesto"]:
-        return True
-
-    return None
+from nova.core.confirmation import parse_yes_no as _yes_no
 
 
 class LearningCommandHandler:

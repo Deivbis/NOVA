@@ -33,7 +33,9 @@ from nova.voice import (
 )
 from nova.personality import IdentityService
 from nova.learning import LearningService
-
+from nova.automation import AutomationService, WindowsSystemProvider
+from nova.core import RiskLevel
+from nova.security import SecurityService
 
 logger = get_logger(__name__)
 
@@ -166,6 +168,23 @@ def main() -> int:
             )
             memory_service = MemoryService(storage_service.memory_repository)
 
+            automation_service = AutomationService(
+                SecurityService(storage_service.permission_repository),
+                WindowsSystemProvider(),
+            )
+            orchestrator.capabilities.register(
+                Capability(
+                    id="automation",
+                    name="Automatización",
+                    description=(
+                        "Abrir programas, carpetas y webs; controlar "
+                        "la música (permisos locales)."
+                    ),
+                    provider="windows",
+                    risk_level=RiskLevel.MEDIUM,
+                )
+            )
+
             learning_service = LearningService(
                  storage_service.learning_repository,
                  memory_service,
@@ -198,6 +217,7 @@ def main() -> int:
                 identity_service,
                 memory_service,
                 learning_service,
+                automation_service,
             )
 
             engine = QQmlApplicationEngine()

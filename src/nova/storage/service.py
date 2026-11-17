@@ -7,7 +7,7 @@ from nova.storage.repositories.conversation_repository import (
 from nova.storage.repositories.system_repository import SystemRepository
 from nova.storage.repositories.memory_repository import MemoryRepository
 from nova.storage.repositories.learning_repository import LearningRepository
-
+from nova.storage.repositories.permission_repository import PermissionRepository
 
 class StorageService:
     """Public service interface for NOVA storage."""
@@ -18,6 +18,7 @@ class StorageService:
         self.system_repository: SystemRepository | None = None
         self.memory_repository: MemoryRepository | None = None
         self.learning_repository: LearningRepository | None = None
+        self.permission_repository: PermissionRepository | None = None
         self.conversation_repository: ConversationRepository | None = None
 
     def initialize(self) -> None:
@@ -33,6 +34,9 @@ class StorageService:
             self.manager.connection
         )
         self.learning_repository = LearningRepository(
+            self.manager.connection
+        )
+        self.permission_repository = PermissionRepository(
             self.manager.connection
         )
 
@@ -54,3 +58,4 @@ class StorageService:
         self.conversation_repository = None
         self.memory_repository = None
         self.learning_repository = None
+        self.permission_repository = None

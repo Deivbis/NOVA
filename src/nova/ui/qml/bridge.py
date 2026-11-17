@@ -38,6 +38,7 @@ from nova.storage.service import StorageService
 from nova.ui.state import UIState
 from nova.voice import VoiceInputService, VoiceService
 from nova.learning import LearningCommandHandler, LearningService
+from nova.automation import AutomationCommandHandler, AutomationService
 
 logger = get_logger(__name__)
 
@@ -96,6 +97,7 @@ class NovaUiBridge(QObject):
         identity_service: IdentityService | None = None,
         memory_service: MemoryService | None = None,
         learning_service: LearningService | None = None,
+        automation_service: AutomationService | None = None,
         parent: QObject | None = None,
     ) -> None:
         
@@ -132,6 +134,11 @@ class NovaUiBridge(QObject):
         )
 
         self._unsubscribe_voice_errors = None
+        self._automation_handler = (
+            AutomationCommandHandler(automation_service)
+            if automation_service is not None
+            else None
+        )
 
         self._active_thread: QThread | None = None
         self._active_worker: RequestWorker | None = None
@@ -303,6 +310,12 @@ class NovaUiBridge(QObject):
                 self._memory_handler.handle(memory_command),
             )
             return
+        if self._automation_handler is not None:
+            automation_reply = self._automation_handler.reply_to(message)
+
+            if automation_reply is not None:
+                self._reply_locally(conversation_id, automation_reply)
+                return
 
         if self._learning_handler is not None:
             learning_reply = self._learning_handler.reply_to(message)

@@ -203,6 +203,17 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
 - **P-025 Correcciones.** SPEC-015 §10 (la corrección prima sobre
   inferencias): hoy se corrige con "olvida X" + "recuerda que…".
 
+- **D-031 Automatización y Security (Fase 8).** Orden: comando → plan
+  (resuelve destino) → Security → confirmación hablada si es la primera
+  vez → ejecución → auditoría. Lista blanca incorporada (programas básicos,
+  carpetas de usuario, webs conocidas, multimedia) + permisos del usuario
+  por destino (`permissions`, migración v005), revocables. Programas
+  resueltos desde el menú Inicio (nunca ejecución libre de texto). Solo
+  http/https; sin rutas de red. Multimedia por teclas de medios de Windows
+  (controla la app que esté sonando). Auditoría: solo el tipo de acción.
+- **P-026 Sí/no compartido** en `core/confirmation.py`; si hay varias
+  confirmaciones pendientes manda la de automatización.
+  
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:

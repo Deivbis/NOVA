@@ -18,6 +18,8 @@ _GENERIC = frozenset({
     "software", "desarrollo", "dormir", "sueno", "dolor", "diario",
     "habito", "cada dia", "todos los dias", "cada manana", "cada noche",
     "me levanto", "me acuesto",
+    "dejad", "mentaje", "odio", "prefiero", "gusta", "gustan", "aprender",
+    "aprendido", "aprendiste", "olvida", "recuerda", "recuerdas",
     "hacer", "hago", "haces", "hace", "tengo", "tienes", "tiene", "tener",
     "estoy", "estas", "estamos", "estan", "estaba", "estuve", "voy",
     "vamos", "hoy", "ayer", "manana", "ahora", "luego", "despues",
