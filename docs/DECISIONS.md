@@ -188,6 +188,21 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   autorizados"; si nada coincide, no se envía nada. Acceso solo a través de
   `MemoryService` (SPEC-014 §17).
 
+- **D-030 Aprendizaje (Fase 7).** Dos señales: frases explícitas
+  ("prefiero…", "me gusta…", "siempre uso…", "suelo…", "odio…") y patrones
+  (mismo tema en ≥5 mensajes y ≥3 conversaciones en 30 días). Solo se
+  guarda el tema, nunca el texto de las observaciones. Todo candidato se
+  propone en el chat con su motivo y exige «sí»; un «no» no se vuelve a
+  proponer. Confirmado → `MemoryService.remember(source="learned")`.
+  Órdenes deterministas: "qué has aprendido", "deja de aprender" /
+  "activa el aprendizaje" (`system.learning.enabled`), "confirma/descarta
+  lo aprendido". Olvidar un aprendizaje = "olvida X" (memoria). Tablas
+  `learning_candidates` y `learning_observations` (migración v004).
+- **P-024 Patrones por categoría.** El patrón usa la categoría del
+  clasificador; mejorar a palabras concretas.
+- **P-025 Correcciones.** SPEC-015 §10 (la corrección prima sobre
+  inferencias): hoy se corrige con "olvida X" + "recuerda que…".
+
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:

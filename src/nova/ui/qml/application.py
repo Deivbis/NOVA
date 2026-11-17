@@ -32,6 +32,8 @@ from nova.voice import (
     save_voice_settings,
 )
 from nova.personality import IdentityService
+from nova.learning import LearningService
+
 
 logger = get_logger(__name__)
 
@@ -163,6 +165,19 @@ def main() -> int:
                 ),
             )
             memory_service = MemoryService(storage_service.memory_repository)
+
+            learning_service = LearningService(
+                 storage_service.learning_repository,
+                 memory_service,
+                 get_enabled=lambda: (
+                     storage_service.get_system_value("learning.enabled")
+                     != "0"
+                 ),
+                 set_enabled=lambda value: storage_service.set_system_value(
+                     "learning.enabled", "1" if value else "0"
+                 ),
+             )
+            
             orchestrator.capabilities.register(
                 Capability(
                     id="memory",
@@ -182,6 +197,7 @@ def main() -> int:
                 voice_input,
                 identity_service,
                 memory_service,
+                learning_service,
             )
 
             engine = QQmlApplicationEngine()

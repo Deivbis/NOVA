@@ -100,3 +100,24 @@ def classify(text: str) -> str:
             best, best_hits = category, hits
 
     return best
+
+_DISPLAY = {
+    normalize(word): word
+    for words in _KEYWORDS.values()
+    for word in words
+}
+
+
+def find_keywords(text: str) -> list[tuple[str, str]]:
+    """(palabra, categoría) de cada palabra clave presente en el texto."""
+    padded = f" {' '.join(tokens(text))} "
+    found: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    for category in MEMORY_CATEGORIES:
+        for word in _KEYWORDS_NORMALIZED[category]:
+            if word not in seen and f" {word} " in padded:
+                seen.add(word)
+                found.append((_DISPLAY[word], category))
+
+    return found

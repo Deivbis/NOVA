@@ -37,6 +37,7 @@ from nova.core.result import Result
 from nova.storage.service import StorageService
 from nova.ui.state import UIState
 from nova.voice import VoiceInputService, VoiceService
+from nova.learning import LearningCommandHandler, LearningService
 
 logger = get_logger(__name__)
 
@@ -94,6 +95,7 @@ class NovaUiBridge(QObject):
         voice_input: VoiceInputService | None = None,
         identity_service: IdentityService | None = None,
         memory_service: MemoryService | None = None,
+        learning_service: LearningService | None = None,
         parent: QObject | None = None,
     ) -> None:
         
@@ -123,6 +125,12 @@ class NovaUiBridge(QObject):
             if memory_service is not None
             else None
         )
+        self._learning_handler = (
+            LearningCommandHandler(learning_service)
+            if learning_service is not None
+            else None
+        )
+
         self._unsubscribe_voice_errors = None
 
         self._active_thread: QThread | None = None
@@ -295,6 +303,15 @@ class NovaUiBridge(QObject):
                 self._memory_handler.handle(memory_command),
             )
             return
+
+        if self._learning_handler is not None:
+            learning_reply = self._learning_handler.reply_to(message)
+
+            if learning_reply is not None:
+                self._reply_locally(conversation_id, learning_reply)
+                return
+
+            self._learning_handler.observe(message, conversation_id)
         
         command = Command(
             name="chat.generate",
@@ -395,8 +412,9 @@ class NovaUiBridge(QObject):
                         "Conversation no longer exists."
                     )
 
+                reply = self._with_proposal(result.value)
                 assistant_message = conversation.add_assistant_message(
-                    result.value
+                    reply
                 )
 
                 repository.add_message(
@@ -441,7 +459,7 @@ class NovaUiBridge(QObject):
             self._orchestrator.set_state(NovaState.SPEAKING)
 
             if self._voice_service is not None:
-                self._voice_service.speak(result.value)
+                self._voice_service.speak(reply)
 
     @Slot()
     def _on_worker_thread_finished(self) -> None:
@@ -488,6 +506,14 @@ class NovaUiBridge(QObject):
 
         if self._conversation.conversation_id == conversation_id:
             self.conversationChanged.emit()
+
+    def _with_proposal(self, text: str) -> str:
+        if self._learning_handler is None:
+            return text
+
+        proposal = self._learning_handler.proposal()
+
+        return f"{text}\n\n{proposal}" if proposal else text
 
     def _build_messages(self) -> list[dict[str, str]]:
         history = self._conversation.history()
