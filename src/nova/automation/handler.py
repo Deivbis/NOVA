@@ -52,6 +52,10 @@ class AutomationCommandHandler:
         self._pending_file: FileOperation | None = None
         self._results: list[Path] = []
 
+    @property
+    def pending(self) -> bool:
+        return self._pending is not None or self._pending_file is not None
+
     def reply_to(self, text: str) -> str | None:
         try:
             if self._pending_file is not None:

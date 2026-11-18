@@ -8,6 +8,8 @@ from nova.storage.repositories.system_repository import SystemRepository
 from nova.storage.repositories.memory_repository import MemoryRepository
 from nova.storage.repositories.learning_repository import LearningRepository
 from nova.storage.repositories.permission_repository import PermissionRepository
+from nova.storage.repositories.routine_repository import RoutineRepository
+from nova.storage.repositories.task_repository import TaskRepository
 
 class StorageService:
     """Public service interface for NOVA storage."""
@@ -19,6 +21,8 @@ class StorageService:
         self.memory_repository: MemoryRepository | None = None
         self.learning_repository: LearningRepository | None = None
         self.permission_repository: PermissionRepository | None = None
+        self.task_repository: TaskRepository | None = None
+        self.routine_repository: RoutineRepository | None = None
         self.conversation_repository: ConversationRepository | None = None
 
     def initialize(self) -> None:
@@ -39,7 +43,9 @@ class StorageService:
         self.permission_repository = PermissionRepository(
             self.manager.connection
         )
-
+        self.task_repository = TaskRepository(self.manager.connection)
+        self.routine_repository = RoutineRepository(self.manager.connection)
+        
     def set_system_value(self, key: str, value: str) -> None:
         if self.system_repository is None:
             raise RuntimeError("StorageService is not initialized.")
@@ -59,3 +65,5 @@ class StorageService:
         self.memory_repository = None
         self.learning_repository = None
         self.permission_repository = None
+        self.task_repository = None
+        self.routine_repository = None

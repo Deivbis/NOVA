@@ -16,6 +16,7 @@ from nova.storage.migrations.versions import (
      v003_memories,
      v004_learning,
      v005_permissions,
+     v006_tasks,
  )
 
 class StorageManager:
@@ -27,6 +28,7 @@ class StorageManager:
         v003_memories,
         v004_learning,
         v005_permissions,
+        v006_tasks,
     )
 
     def __init__(self, database_path: Path) -> None:

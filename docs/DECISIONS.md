@@ -224,7 +224,21 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   solo `file.<tipo>`.
 - **P-027** Parser: el origen de copiar/mover (`de X a Y`) no admite
   espacios si es ruta; nombres con " de " se parten por el último «de».
-  
+
+- **D-033 Pendientes y recordatorios (8.2b).** Tablas `tasks` (migración
+  v006). Recordatorio = pendiente con hora (en N min/horas/días, «a las
+  H», «mañana a las H», «hoy»; sin am/pm y ya pasado → heurística +12 h).
+  Aviso por voz y chat con un QTimer de 15 s; los vencidos con la app
+  cerrada salen al iniciar indicando su hora. Sin hora → se pregunta.
+  Auditoría: `task.created|done|cancelled|fired` con `todo|reminder`.
+- **D-034 Rutinas (8.2c, ActionPlan).** Lista ordenada de pasos (solo
+  abrir y multimedia), validada al crearla. Cada paso pasa por Security;
+  si uno pide confirmación la rutina se pausa y continúa con «sí»; otro
+  texto la detiene. Máx. 10 pasos. Auditoría: `routine.*`.
+- **P-028** Recordatorios solo con la app abierta (no hay servicio en
+  segundo plano); notificaciones del sistema para Fase 10 (UI).
+- **P-029** Sin recordatorios recurrentes ni fechas por día de semana.
+
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:

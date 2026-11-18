@@ -13,6 +13,7 @@ from nova.storage.paths import (
     default_logs_dir,
     default_voices_dir,
 )
+from nova.tasks import TaskService
 from nova.memory import MemoryService
 from nova.storage.service import StorageService
 from nova.ui.qml.bridge import NovaUiBridge
@@ -218,6 +219,9 @@ def main() -> int:
                 memory_service,
                 learning_service,
                 automation_service,
+                TaskService(storage_service.task_repository),
+                storage_service.routine_repository,
+
             )
 
             engine = QQmlApplicationEngine()

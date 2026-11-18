@@ -39,10 +39,14 @@ from nova.ui.state import UIState
 from nova.voice import VoiceInputService, VoiceService
 from nova.learning import LearningCommandHandler, LearningService
 from nova.automation import AutomationCommandHandler, AutomationService
+from nova.automation import RoutineHandler
+from nova.tasks import TaskCommandHandler, TaskService
+from nova.storage.repositories.routine_repository import RoutineRepository
 
 logger = get_logger(__name__)
 
 ERROR_DISPLAY_MS = 2500
+REMINDER_CHECK_MS = 15000
 SHUTDOWN_WAIT_MS = 3000
 
 class RequestWorker(QObject):
@@ -98,6 +102,8 @@ class NovaUiBridge(QObject):
         memory_service: MemoryService | None = None,
         learning_service: LearningService | None = None,
         automation_service: AutomationService | None = None,
+        task_service: TaskService | None = None,
+        routine_repository: RoutineRepository | None = None,
         parent: QObject | None = None,
     ) -> None:
         
@@ -139,6 +145,21 @@ class NovaUiBridge(QObject):
             if automation_service is not None
             else None
         )
+        self._task_handler = (
+            TaskCommandHandler(task_service)
+            if task_service is not None
+            else None
+        )
+        self._routine_handler = (
+            RoutineHandler(
+                routine_repository,
+                self._automation_handler,
+                automation_service,
+            )
+            if routine_repository is not None
+            and self._automation_handler is not None
+            else None
+        )
 
         self._active_thread: QThread | None = None
         self._active_worker: RequestWorker | None = None
@@ -155,6 +176,13 @@ class NovaUiBridge(QObject):
         self._timer.setInterval(100)
         self._timer.timeout.connect(self._refresh_state)
         self._timer.start()
+        self._reminder_timer = QTimer(self)
+        self._reminder_timer.setInterval(REMINDER_CHECK_MS)
+        self._reminder_timer.timeout.connect(self._check_reminders)
+
+        if self._task_handler is not None:
+            self._reminder_timer.start()
+            QTimer.singleShot(3000, self._check_reminders)
 
         if voice_service is not None or voice_input is not None:
             self.voiceErrorRaised.connect(self._on_voice_error)
@@ -310,6 +338,14 @@ class NovaUiBridge(QObject):
                 self._memory_handler.handle(memory_command),
             )
             return
+        
+        for handler in (self._routine_handler, self._task_handler):
+            reply = handler.reply_to(message) if handler is not None else None
+
+            if reply is not None:
+                self._reply_locally(conversation_id, reply)
+                return
+            
         if self._automation_handler is not None:
             automation_reply = self._automation_handler.reply_to(message)
 
@@ -569,6 +605,21 @@ class NovaUiBridge(QObject):
         if self._voice_service is not None:
             self._voice_service.speak(reply)
             
+    def _check_reminders(self) -> None:
+        if self._shutting_down or self._task_handler is None:
+            return
+
+        if (
+            self._voice_service is not None
+            and self._voice_service.is_speaking
+        ):
+            return
+
+        message = self._task_handler.due_messages()
+
+        if message:
+            self._reply_locally(self._conversation.conversation_id, message)
+
     def _reply_locally(self, conversation_id: UUID, reply: str) -> None:
         # Respuesta determinista (sin modelo): órdenes de memoria.
         assistant_message = self._conversation.add_assistant_message(reply)
@@ -701,6 +752,7 @@ class NovaUiBridge(QObject):
 
         self._shutting_down = True
         self._timer.stop()
+        self._reminder_timer.stop()
 
         if self._unsubscribe_voice_errors is not None:
             self._unsubscribe_voice_errors()
