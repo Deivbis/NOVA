@@ -213,6 +213,17 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   (controla la app que esté sonando). Auditoría: solo el tipo de acción.
 - **P-026 Sí/no compartido** en `core/confirmation.py`; si hay varias
   confirmaciones pendientes manda la de automatización.
+
+- **D-032 Archivos (Fase 8.2a).** Alcance: carpetas de usuario + carpetas
+  autorizadas con «autoriza la carpeta X» (permiso `files`, distinto de
+  `folder`). Bloqueado siempre: sistema, raíz de disco, red y raíces
+  autorizadas como objetivo. Sin confirmación: buscar, listar, crear
+  carpeta y copiar. Confirmación siempre y sin permiso permanente: mover,
+  renombrar, borrar (solo papelera, SHFileOperation) y organizar (plan
+  previo por tipo, solo archivos sueltos). Nunca sobrescribe. Auditoría:
+  solo `file.<tipo>`.
+- **P-027** Parser: el origen de copiar/mover (`de X a Y`) no admite
+  espacios si es ruta; nombres con " de " se parten por el último «de».
   
 ## Pendientes
 

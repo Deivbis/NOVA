@@ -9,7 +9,27 @@ class ActionKind(str, Enum):
     OPEN_FOLDER = "folder"
     OPEN_WEB = "web"
     MEDIA = "media"
+    OPEN_FILE = "file"
+    FILES_SCOPE = "files"
 
+
+
+class FileOpKind(str, Enum):
+    CREATE_DIR = "create_dir"
+    COPY = "copy"
+    MOVE = "move"
+    RENAME = "rename"
+    DELETE = "delete"
+    ORGANIZE = "organize"
+
+
+@dataclass(frozen=True)
+class FileOperation:
+    kind: FileOpKind
+    label: str
+    source: str | None = None
+    dest: str | None = None
+    moves: tuple[tuple[str, str], ...] = ()
 
 @dataclass(frozen=True)
 class Action:

@@ -6,6 +6,25 @@ from nova.memory.text import normalize
 from nova.storage.repositories.permission_repository import (
     PermissionRepository,
 )
+import os
+from pathlib import Path
+from nova.core.automation import (
+    Action,
+    ActionKind,
+    FileOperation,
+    FileOpKind,
+    SecurityDecision,
+)
+
+USER_FOLDERS = ("Desktop", "Documents", "Downloads", "Music", "Pictures", "Videos")
+_SYSTEM_ENV = ("SystemRoot", "ProgramFiles", "ProgramFiles(x86)", "ProgramData")
+
+
+def _inside(path: Path, root: Path) -> bool:
+    p = os.path.normcase(str(path))
+    r = os.path.normcase(str(root)).rstrip("\\/")
+
+    return p == r or p.startswith(r + os.sep)
 
 
 class SecurityService:
@@ -66,3 +85,84 @@ class SecurityService:
 
     def audit(self, event: str, action: Action) -> None:
         self._repository.audit(event, action.kind.value)
+
+    def allowed_roots(self) -> list[Path]:
+        roots = [Path.home() / name for name in USER_FOLDERS]
+        roots += [
+            Path(key)
+            for kind, key in self._repository.list_permissions()
+            if kind == ActionKind.FILES_SCOPE.value
+        ]
+
+        return [root.resolve() for root in roots]
+
+    def scope_error(self, path: Path) -> str | None:
+        try:
+            resolved = path.resolve()
+        except (OSError, RuntimeError):
+            return "Ruta no válida."
+
+        if str(resolved).startswith("\\\\"):
+            return "Las rutas de red no están permitidas."
+
+        if resolved.parent == resolved:
+            return "No opero sobre la raíz de un disco."
+
+        for name in _SYSTEM_ENV:
+            system = os.environ.get(name)
+
+            if system and _inside(resolved, Path(system)):
+                return "No toco carpetas del sistema."
+
+        if not any(_inside(resolved, r) for r in self.allowed_roots()):
+            return "Esa ruta está fuera de las carpetas autorizadas."
+
+        return None
+
+    def is_scope_root(self, path: Path) -> bool:
+        target = os.path.normcase(str(path.resolve()))
+
+        return any(
+            target == os.path.normcase(str(root))
+            for root in self.allowed_roots()
+        )
+
+    def evaluate_file(self, op: FileOperation) -> SecurityDecision:
+        for raw in (op.source, op.dest):
+            reason = self.scope_error(Path(raw)) if raw else None
+
+            if reason:
+                return SecurityDecision(
+                    False, False, RiskLevel.HIGH, reason, "deny.scope"
+                )
+
+        if (
+            op.kind != FileOpKind.ORGANIZE
+            and op.source
+            and self.is_scope_root(Path(op.source))
+        ):
+            return SecurityDecision(
+                False, False, RiskLevel.HIGH,
+                "No opero sobre una carpeta raíz autorizada.",
+                "deny.scope_root",
+            )
+
+        if op.kind in (FileOpKind.CREATE_DIR, FileOpKind.COPY):
+            return SecurityDecision(
+                True, False, RiskLevel.LOW, "Operación no destructiva.",
+                "file.safe",
+            )
+
+        if op.kind in (FileOpKind.MOVE, FileOpKind.RENAME):
+            return SecurityDecision(
+                True, True, RiskLevel.MEDIUM, "Modifica archivos.",
+                "file.confirm",
+            )
+
+        return SecurityDecision(
+            True, True, RiskLevel.HIGH, "Operación de alto riesgo.",
+            "file.confirm_high",
+        )
+
+    def audit_file(self, event: str, op: FileOperation) -> None:
+        self._repository.audit(event, f"file.{op.kind.value}")

@@ -4,7 +4,12 @@ import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from nova.automation.commands import AutomationAction, AutomationCommand
+from nova.automation.commands import (
+    FOLDER_ALIASES,
+    AutomationAction,
+    AutomationCommand,
+)
+from nova.automation.files import FileService
 from nova.automation.provider import SystemProvider
 from nova.core.automation import Action, ActionKind
 from nova.core.logging_setup import get_logger
@@ -24,12 +29,7 @@ WEB_ALIASES = {
     "github": "https://github.com",
     "whatsapp": "https://web.whatsapp.com",
 }
-FOLDER_ALIASES = {
-    "descargas": "Downloads", "descarga": "Downloads",
-    "documentos": "Documents", "escritorio": "Desktop",
-    "musica": "Music", "imagenes": "Pictures", "fotos": "Pictures",
-    "videos": "Videos",
-}
+
 MEDIA_LABELS = {
     "play_pause": "Pausando o reanudando la música",
     "next": "Siguiente canción",
@@ -49,9 +49,13 @@ class AutomationService:
         self,
         security: SecurityService,
         provider: SystemProvider,
+        files: FileService | None = None,
+        
     ) -> None:
         self.security = security
         self._provider = provider
+        self.files = files or FileService(security)
+        
 
     def plan(self, command: AutomationCommand) -> Result[Action]:
         if command.action == AutomationAction.MEDIA:
