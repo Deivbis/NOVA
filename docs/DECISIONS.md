@@ -260,6 +260,29 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
 - **P-032** `events` del manifest reservado; sin suscripción al Event Bus.
 - **P-033** Pendiente: actualizaciones/reversión de plugins (DOC-021).
 
+- **D-036 Interfaz nueva (Fase 10).** El diseño vive en `src/nova/ui/qml/`
+  (QML) y `src/nova/ui/assets/`. El QML solo habla con `novaBridge` (chat,
+  voz, ajustes) y `systemMetrics` (psutil). Estilo Qt «Basic». Chats y
+  mensajes salen de SQLite (`chatList`, `chatMessages`).
+- **D-037 Streaming del chat (cierra P-014 en la parte del chat).** Ollama
+  con `stream: true`; el worker emite fragmentos al puente (`streamChunk`).
+  El texto parcial NO se guarda: se guarda la respuesta completa al
+  terminar; si falla, el parcial desaparece y se muestra el error. Las
+  respuestas de órdenes locales se escriben poco a poco en el cliente.
+- **D-038 Inicio → Conversación.** Escribir (o dictar) en Inicio crea un chat
+  nuevo, envía el mensaje y salta a Conversación. «Nuevo chat» reutiliza el
+  chat activo si está vacío.
+- **D-039 Voz Edge en la UI.** Interruptor «Voz en línea» en Configuración
+  (`set_online_voice`) y estado real de la voz (`voiceStatus`: Piper/Edge o
+  el código de fallo). `scripts/diag_edge.py` diagnostica descarga y
+  decodificación.
+- **P-010 cerrado:** burbujas de NOVA con `Text.MarkdownText` (sin enlaces
+  activos). Los mensajes del usuario y los errores van en texto plano.
+- **P-034** Ventana sin marco: no se puede redimensionar arrastrando bordes
+  (solo maximizar/restaurar).
+- **P-035** La voz se reproduce al terminar la respuesta; hablar mientras se
+  escribe llega en la etapa 10.6.
+  
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:

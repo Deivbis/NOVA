@@ -44,6 +44,8 @@ from nova.learning import LearningService
 from nova.automation import AutomationService, WindowsSystemProvider
 from nova.core import RiskLevel
 from nova.security import SecurityService
+from PySide6.QtQuickControls2 import QQuickStyle
+from nova.ui.system_metrics import SystemMetrics
 
 logger = get_logger(__name__)
 
@@ -87,6 +89,7 @@ def main() -> int:
 
     try:
         app = QGuiApplication(sys.argv)
+        QQuickStyle.setStyle("Basic")
 
         try:
             config = create_configuration().initialize()
@@ -255,6 +258,10 @@ def main() -> int:
                 "novaBridge",
                 bridge,
             )
+            
+            metrics = SystemMetrics()
+            engine.rootContext().setContextProperty("systemMetrics", metrics)
+            engine.addImportPath(str(Path(__file__).parent))
 
             qml_path = Path(__file__).parent
             main_qml = qml_path / "Main.qml"

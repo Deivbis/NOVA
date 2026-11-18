@@ -39,17 +39,18 @@ class FakeEngine:
     def rootContext(self):
         return self._context
 
+    def addImportPath(self, _path):
+        pass
+
     def load(self, _url):
         pass
 
     def rootObjects(self):
         return self._root_objects
 
-
 class FakeOrb:
     def objectName(self):
         return "PermanentOrb"
-
 
 @pytest.fixture
 def startup_mocks(monkeypatch, tmp_path):

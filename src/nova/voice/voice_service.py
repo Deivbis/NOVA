@@ -99,6 +99,10 @@ class VoiceService:
         with self._lock:
             return self._speaking
 
+    @property
+    def online_error(self) -> str | None:
+        return self._router.last_online_error
+
     def speak(self, text: str) -> bool:
         """Habla el texto sin bloquear. Reemplaza lo que esté sonando.
 

@@ -1,342 +1,80 @@
-﻿import QtQuick
+import QtQuick
 import QtQuick.Window
 import QtQuick.Layouts
 
-import "components"
-
 Window {
-    id: root
-
+    id: win
     width: 1280
     height: 800
-
-    minimumWidth: 1100
-    minimumHeight: 680
-
+    minimumWidth: 980
+    minimumHeight: 700
     visible: true
+    title: "NOVA"
+    color: Theme.bg0
+    flags: Qt.Window | Qt.FramelessWindowHint
 
-    title: "NOVA – Personal Intelligence Platform"
+    // Estado real del Core. La vista previa de Configuración lo sustituye 4 s.
+    property string previewMode: ""
+    readonly property string orbMode: previewMode !== "" ? previewMode : novaBridge.orbState
 
-    color: "#080A12"
+    Timer { id: previewTimer; interval: 4000; onTriggered: win.previewMode = "" }
 
-    // ============================================================
-    // NAVEGACIÓN
-    // ============================================================
-
-    property int currentPage: 0
-
-    /*
-        0 = Inicio
-        1 = Conversación
-        2 = Memoria
-        3 = Proyectos
-        4 = Dashboard
-        5 = Configuración
-    */
-
-    // ============================================================
-    // FONDO
-    // ============================================================
-
-    Rectangle {
-        anchors.fill: parent
-
-        color: "#080A12"
+    Connections {
+        target: novaBridge
+        function onNavigateRequested(page) { sidebar.current = page }
     }
 
-    // ============================================================
-    // SIDEBAR
-    // ============================================================
-
-    Rectangle {
+    Sidebar {
         id: sidebar
+        width: 190
+        height: parent.height
+        orbMode: win.orbMode
+        onCurrentChanged: novaBridge.set_current_page(current)
+    }
 
-        width: 230
+    StackLayout {
+        anchors { left: sidebar.right; right: parent.right; top: parent.top; bottom: parent.bottom }
+        currentIndex: sidebar.current
 
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-
-        color: "#0D1020"
-
-        Rectangle {
-            width: 1
-
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            anchors.right: parent.right
-
-            color: "#1B2140"
-        }
-
-        Column {
-            anchors.fill: parent
-
-            anchors.margins: 22
-
-            spacing: 12
-
-            // ----------------------------------------------------
-            // LOGO
-            // ----------------------------------------------------
-
-            Text {
-                text: "NOVA"
-
-                color: "#FFFFFF"
-
-                font.family: "Segoe UI"
-                font.pixelSize: 26
-                font.bold: true
-            }
-
-            Text {
-                text: "PERSONAL INTELLIGENCE"
-
-                color: "#6873A8"
-
-                font.family: "Segoe UI"
-                font.pixelSize: 9
-                font.bold: true
-            }
-
-            Rectangle {
-                width: parent.width
-                height: 1
-
-                color: "#202746"
-            }
-
-            Item {
-                width: parent.width
-                height: 26
-            }
-
-            // ----------------------------------------------------
-            // NAVEGACIÓN
-            // ----------------------------------------------------
-
-            Repeater {
-                model: [
-                    "Inicio",
-                    "Conversación",
-                    "Memoria",
-                    "Proyectos",
-                    "Dashboard",
-                    "Configuración"
-                ]
-
-                delegate: Rectangle {
-                    id: navItem
-
-                    width: parent.width
-                    height: 48
-
-                    radius: 12
-
-                    property bool selected:
-                        root.currentPage === index
-
-                    color:
-                        selected
-                            ? "#171D3A"
-                            : "transparent"
-
-                    border.width:
-                        selected
-                            ? 1
-                            : 0
-
-                    border.color:
-                        "#303A78"
-
-                    Text {
-                        anchors.left: parent.left
-                        anchors.leftMargin: 16
-
-                        anchors.verticalCenter:
-                            parent.verticalCenter
-
-                        text: modelData
-
-                        color:
-                            navItem.selected
-                                ? "#FFFFFF"
-                                : "#8992B8"
-
-                        font.family: "Segoe UI"
-                        font.pixelSize: 14
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-
-                        hoverEnabled: true
-
-                        onEntered: {
-                            if (!navItem.selected) {
-                                navItem.color =
-                                    "#11162B"
-                            }
-                        }
-
-                        onExited: {
-                            if (!navItem.selected) {
-                                navItem.color =
-                                    "transparent"
-                            }
-                        }
-
-                        onClicked: {
-                            root.currentPage = index
-                        }
-                    }
-                }
-            }
-
-            Item {
-                width: parent.width
-                height: 1
-            }
-
-            // ----------------------------------------------------
-            // ESTADO NOVA
-            // ----------------------------------------------------
-
-            Rectangle {
-                width: parent.width
-                height: 74
-
-                radius: 14
-
-                color: "#11162A"
-
-                border.width: 1
-                border.color: "#20294D"
-
-                Column {
-                    anchors.left: parent.left
-                    anchors.leftMargin: 14
-
-                    anchors.verticalCenter:
-                        parent.verticalCenter
-
-                    spacing: 4
-
-                    Text {
-                        text: "NOVA"
-
-                        color: "#FFFFFF"
-
-                        font.family: "Segoe UI"
-                        font.pixelSize: 14
-                        font.bold: true
-                    }
-
-                    Text {
-                        text: "Sistema activo"
-
-                        color: "#6573A8"
-
-                        font.family: "Segoe UI"
-                        font.pixelSize: 11
-                    }
-                }
-            }
+        HomePage { userName: novaBridge.userName; orbMode: win.orbMode; onNavigate: (i) => sidebar.current = i }
+        ConversationPage { orbMode: win.orbMode }
+        MemoryPage { orbMode: win.orbMode }
+        ProjectsPage { }
+        DashboardPage { orbMode: win.orbMode; onNavigate: (i) => sidebar.current = i }
+        SettingsPage {
+            orbMode: win.orbMode
+            widgetOn: novaBridge.permanentOrbEnabled
+            onModeSelected: (m) => { win.previewMode = m; previewTimer.restart() }
+            onWidgetToggled: (on) => novaBridge.set_permanent_orb(on)
         }
     }
 
-    // ============================================================
-    // ÁREA PRINCIPAL
-    // ============================================================
+    Rectangle { anchors.fill: parent; color: "transparent"; border.color: Theme.stroke; border.width: 1; z: 100 }
 
     Item {
-        id: mainContent
+        anchors { top: parent.top; left: sidebar.right; right: parent.right }
+        height: 30
+        z: 50
+        DragHandler { onActiveChanged: if (active) win.startSystemMove() }
+    }
 
-        anchors.left: sidebar.right
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-
-        // ========================================================
-        // PÁGINAS
-        // ========================================================
-
-        StackLayout {
-            id: pages
-
-            anchors.fill: parent
-
-            currentIndex: root.currentPage
-
-            HomePage {
-                id: homePage
-            }
-
-            ConversationPage {
-                id: conversationPage
-
-                conversationModel: novaBridge.messages
-            }
-
-            MemoryPage {
-                id: memoryPage
-            }
-
-            Item {
-                Rectangle {
-                    anchors.fill: parent
-                    color: "#080A12"
-                }
-
-                Text {
-                    anchors.centerIn: parent
-
-                    text: "Proyectos"
-
-                    color: "#FFFFFF"
-
-                    font.family: "Segoe UI"
-                    font.pixelSize: 30
-                    font.bold: true
-                }
-            }
-
-            Item {
-                Rectangle {
-                    anchors.fill: parent
-                    color: "#080A12"
-                }
-
-                Text {
-                    anchors.centerIn: parent
-
-                    text: "Dashboard"
-
-                    color: "#FFFFFF"
-
-                    font.family: "Segoe UI"
-                    font.pixelSize: 30
-                    font.bold: true
-                }
-            }
-
-            Item {
-                Rectangle {
-                    anchors.fill: parent
-                    color: "#080A12"
-                }
-
-                Text {
-                    anchors.centerIn: parent
-
-                    text: "Configuración"
-
-                    color: "#FFFFFF"
-
-                    font.family: "Segoe UI"
-                    font.pixelSize: 30
-                    font.bold: true
+    Row {
+        anchors { top: parent.top; right: parent.right; topMargin: 12; rightMargin: 16 }
+        spacing: 16
+        z: 60
+        Repeater {
+            model: [ { ic: "min", a: "min" }, { ic: "max", a: "max" }, { ic: "close", a: "close" } ]
+            Image {
+                required property var modelData
+                width: 16; height: 16
+                sourceSize: Qt.size(32, 32)
+                source: Qt.resolvedUrl("../assets/icons/" + modelData.ic + "_d.svg")
+                TapHandler {
+                    onTapped: {
+                        if (modelData.a === "min") win.showMinimized()
+                        else if (modelData.a === "max") win.visibility === Window.Maximized ? win.showNormal() : win.showMaximized()
+                        else Qt.quit()
+                    }
                 }
             }
         }
