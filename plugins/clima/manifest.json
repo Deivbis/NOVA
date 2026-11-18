@@ -1,0 +1,16 @@
+{
+  "id": "clima",
+  "name": "Clima",
+  "version": "1.0.0",
+  "author": "NOVA",
+  "description": "Clima actual de una ciudad con Open-Meteo (sin clave de API).",
+  "nova_min_version": "0.9.0",
+  "dependencies": [],
+  "permissions": ["commands", "network"],
+  "network_domains": ["api.open-meteo.com", "geocoding-api.open-meteo.com"],
+  "commands": [
+    {"name": "clima", "patterns": ["^(?:qu[eé]\\s+clima\\s+hace|qu[eé]\\s+tiempo\\s+hace|c[oó]mo\\s+est[aá]\\s+el\\s+clima)\\s+en\\s+(?P<ciudad>.+?)\\s*[?.!]*$"]}
+  ],
+  "events": [],
+  "examples": ["qué clima hace en Bogotá"]
+}

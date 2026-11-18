@@ -1,6 +1,6 @@
 [nova]
 name = "NOVA"
-version = "0.8.0"
+version = "0.9.0"
 environment = "development"
 language = "es"
 

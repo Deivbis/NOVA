@@ -68,6 +68,9 @@ class AutomationService:
         key = normalize(text)
         free = command.hint is None
 
+        if command.hint == "program":
+            return self._program(text)
+
         if command.hint == "web" or (
             free and (key in WEB_ALIASES or _URL.match(text))
         ):

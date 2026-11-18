@@ -41,7 +41,11 @@ _BASIC = (
     "carpetas de usuario, YouTube, Google, Gmail, GitHub, WhatsApp "
     "y los controles de música."
 )
-
+def _kind_label(kind: str) -> str:
+    try:
+        return _KIND.get(ActionKind(kind), kind)
+    except ValueError:
+        return kind
 
 class AutomationCommandHandler:
     def __init__(self, service: AutomationService) -> None:
@@ -86,6 +90,7 @@ class AutomationCommandHandler:
         except RepositoryError:
             logger.exception("Fallo de permisos.")
             return "No pude consultar los permisos, Jefe."
+        
 
     def _handle(self, command: AutomationCommand) -> str:
         if command.action in _FILE_ACTIONS:
@@ -93,7 +98,7 @@ class AutomationCommandHandler:
         
         if command.action == AutomationAction.PERMISSIONS:
             granted = [
-                f"- {_KIND.get(ActionKind(kind), kind)}: {key}"
+                f"- {_kind_label(kind)}: {key}"
                 for kind, key in self._security.permissions()
             ]
             lines = [_BASIC, "Permisos que me diste:"]

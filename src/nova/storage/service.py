@@ -10,6 +10,7 @@ from nova.storage.repositories.learning_repository import LearningRepository
 from nova.storage.repositories.permission_repository import PermissionRepository
 from nova.storage.repositories.routine_repository import RoutineRepository
 from nova.storage.repositories.task_repository import TaskRepository
+from nova.storage.repositories.plugin_repository import PluginRepository
 
 class StorageService:
     """Public service interface for NOVA storage."""
@@ -23,6 +24,7 @@ class StorageService:
         self.permission_repository: PermissionRepository | None = None
         self.task_repository: TaskRepository | None = None
         self.routine_repository: RoutineRepository | None = None
+        self.plugin_repository: PluginRepository | None = None
         self.conversation_repository: ConversationRepository | None = None
 
     def initialize(self) -> None:
@@ -45,6 +47,7 @@ class StorageService:
         )
         self.task_repository = TaskRepository(self.manager.connection)
         self.routine_repository = RoutineRepository(self.manager.connection)
+        self.plugin_repository = PluginRepository(self.manager.connection)
         
     def set_system_value(self, key: str, value: str) -> None:
         if self.system_repository is None:
@@ -67,3 +70,4 @@ class StorageService:
         self.permission_repository = None
         self.task_repository = None
         self.routine_repository = None
+        self.plugin_repository = None

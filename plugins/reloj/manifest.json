@@ -1,0 +1,17 @@
+{
+  "id": "reloj",
+  "name": "Reloj",
+  "version": "1.0.0",
+  "author": "NOVA",
+  "description": "Dice la hora y la fecha.",
+  "nova_min_version": "0.9.0",
+  "dependencies": [],
+  "permissions": ["commands"],
+  "network_domains": [],
+  "commands": [
+    {"name": "hora", "patterns": ["^(?:qu[eé]\\s+hora\\s+es|dime\\s+la\\s+hora)\\s*[?.!]*$"]},
+    {"name": "fecha", "patterns": ["^(?:qu[eé]\\s+(?:d[ií]a|fecha)\\s+es(?:\\s+hoy)?|en\\s+qu[eé]\\s+fecha\\s+estamos)\\s*[?.!]*$"]}
+  ],
+  "events": [],
+  "examples": ["qué hora es"]
+}

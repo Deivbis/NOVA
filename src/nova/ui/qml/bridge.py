@@ -42,12 +42,15 @@ from nova.automation import AutomationCommandHandler, AutomationService
 from nova.automation import RoutineHandler
 from nova.tasks import TaskCommandHandler, TaskService
 from nova.storage.repositories.routine_repository import RoutineRepository
+from concurrent.futures import Future
+from nova.plugins import MainThread, PluginCommandHandler
 
 logger = get_logger(__name__)
 
 ERROR_DISPLAY_MS = 2500
 REMINDER_CHECK_MS = 15000
 SHUTDOWN_WAIT_MS = 3000
+MAIN_CALL_TIMEOUT_S = 10
 
 class RequestWorker(QObject):
     """Execute one NOVA request outside the UI thread."""
@@ -91,6 +94,7 @@ class NovaUiBridge(QObject):
     voiceErrorRaised = Signal(str)
     voiceTranscriptReady = Signal(str)
     identityChanged = Signal()
+    pluginMainCall = Signal(object)
 
     def __init__(
         self,
@@ -104,6 +108,8 @@ class NovaUiBridge(QObject):
         automation_service: AutomationService | None = None,
         task_service: TaskService | None = None,
         routine_repository: RoutineRepository | None = None,
+        plugin_handler: PluginCommandHandler | None = None,
+        plugin_gateway: MainThread | None = None,
         parent: QObject | None = None,
     ) -> None:
         
@@ -160,6 +166,11 @@ class NovaUiBridge(QObject):
             and self._automation_handler is not None
             else None
         )
+        self._plugin_handler = plugin_handler
+        self.pluginMainCall.connect(self._run_on_main)
+
+        if plugin_gateway is not None:
+            plugin_gateway.bind(self._call_main, self._post_main)
 
         self._active_thread: QThread | None = None
         self._active_worker: RequestWorker | None = None
@@ -361,7 +372,21 @@ class NovaUiBridge(QObject):
                 return
 
             self._learning_handler.observe(message, conversation_id)
-        
+        if self._plugin_handler is not None:
+            plugin_reply = self._plugin_handler.reply_to(message)
+
+            if plugin_reply is not None:
+                self._reply_locally(conversation_id, plugin_reply)
+                return
+
+            if self._plugin_handler.dispatch(
+                message,
+                lambda text: self._reply_locally(
+                    self._conversation.conversation_id, text
+                ),
+            ):
+                return
+
         command = Command(
             name="chat.generate",
             payload={"messages": self._build_messages()},
@@ -619,6 +644,33 @@ class NovaUiBridge(QObject):
 
         if message:
             self._reply_locally(self._conversation.conversation_id, message)
+    @Slot(object)
+    def _run_on_main(self, job) -> None:
+        fn, future = job
+
+        try:
+            value = fn()
+        except Exception as exc:
+            if future is not None:
+                future.set_exception(exc)
+            else:
+                logger.exception("Fallo de plugin en el hilo de la UI.")
+            return
+
+        if future is not None:
+            future.set_result(value)
+
+    def _call_main(self, fn):
+        if self._shutting_down:
+            raise RuntimeError("NOVA se está cerrando.")
+
+        future: Future = Future()
+        self.pluginMainCall.emit((fn, future))
+
+        return future.result(timeout=MAIN_CALL_TIMEOUT_S)
+
+    def _post_main(self, fn) -> None:
+        self.pluginMainCall.emit((fn, None))
 
     def _reply_locally(self, conversation_id: UUID, reply: str) -> None:
         # Respuesta determinista (sin modelo): órdenes de memoria.
@@ -753,6 +805,9 @@ class NovaUiBridge(QObject):
         self._shutting_down = True
         self._timer.stop()
         self._reminder_timer.stop()
+
+        if self._plugin_handler is not None:
+            self._plugin_handler.shutdown()
 
         if self._unsubscribe_voice_errors is not None:
             self._unsubscribe_voice_errors()

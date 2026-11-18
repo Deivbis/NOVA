@@ -239,6 +239,27 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   segundo plano); notificaciones del sistema para Fase 10 (UI).
 - **P-029** Sin recordatorios recurrentes ni fechas por día de semana.
 
+- **D-035 Plugins (Fase 9).** `plugins/<id>/manifest.json` + `plugin.py`
+  (DOC-021). Un subproceso por plugin con entorno mínimo (sin variables
+  heredadas), protocolo JSON por líneas; timeout 10 s, 3 fallos seguidos
+  → desactivación automática. Permisos: commands, speak, network (solo
+  https a dominios del manifest, sin redirecciones, 200 KB), memory.read,
+  automation.open y automation.media (solo destinos que el usuario ya
+  permitió; el plugin nunca pide confirmación). Concesión con
+  confirmación hablada al activar; se comprueban en cada llamada
+  (revocar es inmediato). Permisos en `permissions` (kind=plugin,
+  `id:permiso`); estado en `plugins` (migración v007). Los plugins se
+  evalúan después de las órdenes internas y sus patrones no pueden ser
+  genéricos. SQLite solo en el hilo de la UI (`MainThread`).
+- **P-030** Los subprocesos no son un sandbox del sistema operativo: un
+  plugin malicioso podría usar `os`. Mitigación: solo se cargan plugins
+  copiados por el usuario. Pendiente: firma/hash de plugins y sandbox del
+  SO (Fase 13).
+- **P-031** `NOVA_VERSION` duplicada en `nova/plugins/__init__.py`;
+  unificar con la versión de config.
+- **P-032** `events` del manifest reservado; sin suscripción al Event Bus.
+- **P-033** Pendiente: actualizaciones/reversión de plugins (DOC-021).
+
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:

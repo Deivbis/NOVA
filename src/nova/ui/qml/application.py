@@ -32,6 +32,13 @@ from nova.voice import (
     load_voice_settings,
     save_voice_settings,
 )
+from nova.plugins import (
+    NOVA_VERSION,
+    MainThread,
+    PluginAPI,
+    PluginCommandHandler,
+    PluginManager,
+)
 from nova.personality import IdentityService
 from nova.learning import LearningService
 from nova.automation import AutomationService, WindowsSystemProvider
@@ -173,6 +180,23 @@ def main() -> int:
                 SecurityService(storage_service.permission_repository),
                 WindowsSystemProvider(),
             )
+            main_thread = MainThread()
+            plugin_manager = PluginManager(
+                Path(__file__).resolve().parents[4] / "plugins",
+                storage_service.plugin_repository,
+                storage_service.permission_repository,
+                lambda manifest: PluginAPI(
+                    manifest,
+                    storage_service.permission_repository,
+                    automation_service.security,
+                    automation_service,
+                    memory_service,
+                    main_thread,
+                ),
+                NOVA_VERSION,
+            )
+            plugin_manager.reload()
+
             orchestrator.capabilities.register(
                 Capability(
                     id="automation",
@@ -221,8 +245,10 @@ def main() -> int:
                 automation_service,
                 TaskService(storage_service.task_repository),
                 storage_service.routine_repository,
+                PluginCommandHandler(plugin_manager, main_thread),
+                main_thread,
+             )
 
-            )
 
             engine = QQmlApplicationEngine()
             engine.rootContext().setContextProperty(

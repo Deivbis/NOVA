@@ -1,0 +1,1 @@
+"""SDK y proceso de ejecución de plugins (solo librería estándar)."""
