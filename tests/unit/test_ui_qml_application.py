@@ -22,11 +22,16 @@ class FakeSignal:
 class FakeApplication:
     def __init__(self, _args):
         self.aboutToQuit = FakeSignal()
+        self.native_filters = []
+        self.on_exec = None
 
-    def installNativeEventFilter(self, _event_filter):
-        pass
+    def installNativeEventFilter(self, event_filter):
+        self.native_filters.append(event_filter)
 
     def exec(self):
+        if self.on_exec is not None:
+            self.on_exec()
+
         self.aboutToQuit.emit()
         return 0
 
@@ -148,6 +153,11 @@ def startup_mocks(monkeypatch, tmp_path):
         application,
         "default_database_path",
         lambda: tmp_path / "nova.db",
+    )
+    monkeypatch.setattr(
+    application,
+    "MemoryUiBridge",
+    lambda _service, _parent: MagicMock(),
     )
 
     return {
@@ -296,3 +306,49 @@ def test_startup_continues_when_the_hotkey_cannot_be_registered(
 
     assert result == 0
     startup_mocks["storage"].close.assert_called_once()
+
+def test_native_event_filter_is_installed(
+    startup_mocks,
+):
+    result = application.main()
+
+    assert result == 0
+
+    controller = startup_mocks["controller"]
+    app = startup_mocks["app"]
+
+    assert any(
+        event_filter is controller.native_filter
+        for event_filter in app.native_filters
+    )
+
+    assert len(app.native_filters) == 2
+
+def test_orb_state_changes_are_forwarded_to_controller(
+    startup_mocks,
+):
+    app = startup_mocks["app"]
+    bridge = startup_mocks["bridge"]
+    controller = startup_mocks["controller"]
+
+    def emit_state_changes():
+        bridge.orbState = "listening"
+        bridge.orbStateChanged.emit()
+
+        bridge.orbState = "processing"
+        bridge.orbStateChanged.emit()
+
+        bridge.orbState = "idle"
+        bridge.orbStateChanged.emit()
+
+    app.on_exec = emit_state_changes
+
+    result = application.main()
+
+    assert result == 0
+
+    assert controller.set_orb_state.call_args_list == [
+        (("listening",),),
+        (("processing",),),
+        (("idle",),),
+    ]

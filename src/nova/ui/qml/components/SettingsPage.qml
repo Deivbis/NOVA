@@ -23,7 +23,7 @@ Rectangle {
     ]
 
     NText { x: 30; y: 40; text: "Configuración"; font.pixelSize: 24; font.bold: true }
-    NText { x: 30; y: 74; text: "Voz, orbe y estados."; color: Theme.accentSoft; font.pixelSize: 12 }
+    NText { x: 30; y: 74; text: "Voz, estados del orbe y orbe permanente."; color: Theme.accentSoft; font.pixelSize: 12 }
 
     Flickable {
         id: flick
@@ -40,7 +40,6 @@ Rectangle {
             width: flick.width - 60
             spacing: 16
 
-            // ---- Estados del orbe (vista previa de 4 s) ----
             Card {
                 width: parent.width
                 height: 280
@@ -72,14 +71,14 @@ Rectangle {
                 }
             }
 
-            // ---- Orbe permanente ----
+
             Card {
                 width: parent.width
                 height: 80
                 Column {
                     x: 20; anchors.verticalCenter: parent.verticalCenter; spacing: 4
                     NText { text: "Orbe permanente"; font.pixelSize: 14; font.bold: true }
-                    NText { text: "Flota sobre el escritorio y refleja el estado de NOVA."; font.pixelSize: 10; color: Theme.textSecondary }
+                    NText { text: "Misma animación y lógica, menor escala. Flota sobre el escritorio."; font.pixelSize: 10; color: Theme.textSecondary }
                 }
                 Switch {
                     anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
@@ -88,7 +87,6 @@ Rectangle {
                 }
             }
 
-            // ---- Voz ----
             Card {
                 width: parent.width
                 height: voiceCol.implicitHeight + 36

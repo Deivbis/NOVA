@@ -7,7 +7,7 @@ Rectangle {
     color: "#050b22"
     property int sel: 0
 
-    function icon(n, v) { return Qt.resolvedUrl("../assets/icons/" + n + "_" + (v || "c") + ".svg") }
+    function icon(n, v) { return Qt.resolvedUrl("../../assets/icons/" + n + "_" + (v || "c") + ".svg") }
 
     readonly property var projects: AppData.projects
     readonly property var stColors: ({
@@ -74,7 +74,7 @@ Rectangle {
                     x: 8; y: 8
                     width: parent.width - 16
                     height: width / 2.88
-                    source: Qt.resolvedUrl("../assets/banners/proj_" + (card.index + 1) + ".png")
+                    source: Qt.resolvedUrl("../../assets/banners/proj_" + (card.index + 1) + ".png")
                     smooth: true
                 }
                 Image {

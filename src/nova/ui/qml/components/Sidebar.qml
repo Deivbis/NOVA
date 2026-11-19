@@ -52,7 +52,7 @@ Rectangle {
                     x: 14; anchors.verticalCenter: parent.verticalCenter
                     width: 20; height: 20
                     sourceSize: Qt.size(40, 40)
-                    source: Qt.resolvedUrl("../assets/icons/" + nav.modelData.icon + (nav.active ? "_w" : "_d") + ".svg")
+                    source: Qt.resolvedUrl("../../assets/icons/" + nav.modelData.icon + (nav.active ? "_w" : "_d") + ".svg")
                 }
                 NText {
                     x: 46; anchors.verticalCenter: parent.verticalCenter

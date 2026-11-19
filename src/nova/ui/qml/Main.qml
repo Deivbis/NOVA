@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Window
 import QtQuick.Layouts
+import "components"
 
 Window {
     id: win
@@ -13,11 +14,20 @@ Window {
     color: Theme.bg0
     flags: Qt.Window | Qt.FramelessWindowHint
 
-    // Estado real del Core. La vista previa de Configuración lo sustituye 4 s.
+    // Estado real del Core. La vista previa (Configuración o Ctrl+1…5) lo sustituye 4 s.
     property string previewMode: ""
     readonly property string orbMode: previewMode !== "" ? previewMode : novaBridge.orbState
 
     Timer { id: previewTimer; interval: 4000; onTriggered: win.previewMode = "" }
+
+    Repeater {
+        model: ["idle", "listening", "processing", "responding", "error"]
+        Item {
+            required property string modelData
+            required property int index
+            Shortcut { sequence: "Ctrl+" + (index + 1); onActivated: { win.previewMode = modelData; previewTimer.restart() } }
+        }
+    }
 
     Connections {
         target: novaBridge
@@ -79,4 +89,5 @@ Window {
             }
         }
     }
+
 }

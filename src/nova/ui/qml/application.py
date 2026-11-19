@@ -19,6 +19,7 @@ from nova.storage.service import StorageService
 from nova.ui.qml.bridge import NovaUiBridge
 from nova.ui.qml.hotkey_filter import HotkeyFilter
 from nova.ui.qml.windows_orb import WindowsOrbController
+from nova.ui.qml.memory_bridge import MemoryUiBridge
 from nova.voice import (
     EdgeTTSProvider,
     FasterWhisperSTT,
@@ -224,7 +225,7 @@ def main() -> int:
                      "learning.enabled", "1" if value else "0"
                  ),
              )
-            
+
             orchestrator.capabilities.register(
                 Capability(
                     id="memory",
@@ -258,9 +259,13 @@ def main() -> int:
                 "novaBridge",
                 bridge,
             )
-            
+
             metrics = SystemMetrics()
             engine.rootContext().setContextProperty("systemMetrics", metrics)
+            engine.rootContext().setContextProperty(
+                "novaMemory", MemoryUiBridge(memory_service, app)
+            )
+
             engine.addImportPath(str(Path(__file__).parent))
 
             qml_path = Path(__file__).parent

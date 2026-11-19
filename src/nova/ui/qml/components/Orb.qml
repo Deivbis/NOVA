@@ -13,7 +13,7 @@ Item {
     implicitWidth: size
     implicitHeight: size
 
-    readonly property string dir: Qt.resolvedUrl("../assets/" + Theme.orbSet + "/") + mode + "_"
+    readonly property string dir: Qt.resolvedUrl("../../assets/" + Theme.orbSet + "/") + mode + "_"
     readonly property int breathMs: ({ idle: 2800, listening: 1200, processing: 800, responding: 480, error: 520 })[mode] || 2800
 
     property real wave: 1.0     // amplitud de la forma de onda (responding)

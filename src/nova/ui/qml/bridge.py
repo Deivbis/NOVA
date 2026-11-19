@@ -573,12 +573,11 @@ class NovaUiBridge(QObject):
         ) - 1
 
         if remaining <= 0:
-            self._requests_by_conversation.pop(
-                conversation_id,
-                None,
-            )
+            self._requests_by_conversation.pop(conversation_id, None)
         else:
             self._requests_by_conversation[conversation_id] = remaining
+
+        self.requestFinished.emit(str(conversation_id))
 
         if request.status == RequestStatus.COMPLETED:
             self._orchestrator.set_state(NovaState.SPEAKING)
@@ -783,6 +782,9 @@ class NovaUiBridge(QObject):
 
     @Slot(str)
     def _on_voice_transcript(self, text: str) -> None:
+        if not text.strip() or self._shutting_down:
+            return
+
         if self._current_page == 0:  # pantalla de inicio: chat nuevo
             self.start_conversation_with(text)
             self.navigateRequested.emit(1)

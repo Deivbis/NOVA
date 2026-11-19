@@ -282,7 +282,14 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   (solo maximizar/restaurar).
 - **P-035** La voz se reproduce al terminar la respuesta; hablar mientras se
   escribe llega en la etapa 10.6.
-  
+
+- **D-041 Memoria en la UI (10.2).** La página usa `MemoryPanel` (sin Qt) sobre
+  `MemoryService`; el puente `novaMemory` solo adapta tipos. Se refresca al
+  abrirse, al cambiar la memoria desde la UI y al terminar cualquier mensaje.
+  Borrado definitivo solo sobre recuerdos ya olvidados (DOC-016: primero
+  reversible). El medidor muestra el % de recuerdos aprendidos.
+- **P-036** Memoria sin paginación (máx. 500 filas en pantalla).
+
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:

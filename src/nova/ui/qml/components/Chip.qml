@@ -18,7 +18,7 @@ Rectangle {
             visible: c.icon !== ""
             anchors.verticalCenter: parent.verticalCenter
             width: 13; height: 13; sourceSize: Qt.size(26, 26)
-            source: c.icon !== "" ? Qt.resolvedUrl("../assets/icons/" + c.icon + (c.active ? "_w" : "_d") + ".svg") : ""
+            source: c.icon !== "" ? Qt.resolvedUrl("../../assets/icons/" + c.icon + (c.active ? "_w" : "_d") + ".svg") : ""
         }
         NText { anchors.verticalCenter: parent.verticalCenter; text: c.label; font.pixelSize: 11; color: c.active ? "white" : "#8fb0ff" }
     }

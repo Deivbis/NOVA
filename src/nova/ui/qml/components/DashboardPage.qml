@@ -1,8 +1,8 @@
-﻿import QtQuick
+import QtQuick
 import QtQuick.Layouts
 
-// Dashboard â€” "Panel de control" segÃºn la referencia (Hoja 06).
-// Datos reales del PC vÃ­a `backend`; actividad y accesos desde AppData.
+// Dashboard — "Panel de control" según la referencia (Hoja 06).
+// Datos reales del PC vía `backend`; actividad y accesos desde AppData.
 Rectangle {
     id: page
     property string orbMode: "idle"
@@ -10,13 +10,13 @@ Rectangle {
     signal navigate(int page)
     color: "#050b22"
 
-    function icon(n, v) { return Qt.resolvedUrl("../assets/icons/" + n + "_" + (v || "c") + ".svg") }
+    function icon(n, v) { return Qt.resolvedUrl("../../assets/icons/" + n + "_" + (v || "c") + ".svg") }
     function metric(k) { return k === "cpu" ? systemMetrics.cpu : (k === "ram" ? systemMetrics.ram : (k === "disk" ? systemMetrics.disk : systemMetrics.net)) }
     function hist(k) { return k === "cpu" ? systemMetrics.cpuHistory : (k === "ram" ? systemMetrics.ramHistory : (k === "disk" ? systemMetrics.diskHistory : systemMetrics.netHistory)) }
     function status(k) {
         var v = metric(k)
         if (k === "cpu") return v > 80 ? "Alto" : "Normal"
-        if (k === "ram") return v > 90 ? "CrÃ­tica" : "En uso"
+        if (k === "ram") return v > 90 ? "Crítica" : "En uso"
         if (k === "disk") return v > 90 ? "Casi lleno" : "Disponible"
         return v > 0.5 ? "Activa" : "Estable"
     }
@@ -27,10 +27,10 @@ Rectangle {
         disk: { t: "Disco",   c: "#2fe0a0", sc: "#2fe0a0" },
         net:  { t: "Red",     c: "#4a9bff", sc: "#2fe0a0" }
     })
-    readonly property var ranges: ["Ãšltimos 7 dÃ­as", "Ãšltimos 30 dÃ­as", "Ãšltimos 90 dÃ­as"]
+    readonly property var ranges: ["Últimos 7 días", "Últimos 30 días", "Últimos 90 días"]
     readonly property var activity: AppData.activity
     readonly property var quick: AppData.quickActions
-    readonly property var assistText: ({ idle: "En espera...", listening: "Escuchando...", processing: "Procesando...", responding: "Respondiendo...", error: "Requiere atenciÃ³n" })
+    readonly property var assistText: ({ idle: "En espera...", listening: "Escuchando...", processing: "Procesando...", responding: "Respondiendo...", error: "Requiere atención" })
 
     // rendimiento general = lo que le queda libre a CPU y memoria
     readonly property real perf: Math.max(0, 100 - (systemMetrics.cpu + systemMetrics.ram) / 2)
@@ -85,7 +85,7 @@ Rectangle {
             Layout.fillHeight: true
             spacing: 14
 
-            // mÃ©tricas del sistema
+            // métricas del sistema
             RowLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: false
@@ -234,7 +234,7 @@ Rectangle {
                         }
                         NText {
                             Layout.alignment: Qt.AlignHCenter
-                            text: page.orbMode === "error" ? "AtenciÃ³n" : "Activo"
+                            text: page.orbMode === "error" ? "Atención" : "Activo"
                             font.pixelSize: 14; font.bold: true
                             color: page.orbMode === "error" ? "#ff5a78" : "#2fe0a0"
                         }
@@ -252,7 +252,7 @@ Rectangle {
             }
         }
 
-        // ---------------- Accesos rÃ¡pidos + informaciÃ³n del sistema ----------------
+        // ---------------- Accesos rápidos + información del sistema ----------------
         Card {
             Layout.preferredWidth: Math.max(230, Math.min(290, page.width * 0.20))
             Layout.fillHeight: true
@@ -260,7 +260,7 @@ Rectangle {
             ColumnLayout {
                 anchors { fill: parent; margins: 16 }
                 spacing: 10
-                NText { text: "Accesos rÃ¡pidos"; font.pixelSize: 14; font.bold: true; Layout.leftMargin: 2; Layout.bottomMargin: 4 }
+                NText { text: "Accesos rápidos"; font.pixelSize: 14; font.bold: true; Layout.leftMargin: 2; Layout.bottomMargin: 4 }
                 Repeater {
                     model: page.quick
                     Card {
@@ -275,12 +275,12 @@ Rectangle {
                 }
                 Item { Layout.fillHeight: true }
                 Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: "#12296a" }
-                NText { text: "InformaciÃ³n del sistema"; font.pixelSize: 13; font.bold: true; Layout.topMargin: 4 }
+                NText { text: "Información del sistema"; font.pixelSize: 13; font.bold: true; Layout.topMargin: 4 }
                 Repeater {
                     model: [
                         { l: "Tiempo activo", v: systemMetrics.sysUptime },
                         { l: "Procesos", v: systemMetrics.sysProcs },
-                        { l: "NÃºcleos CPU", v: systemMetrics.sysCores },
+                        { l: "Núcleos CPU", v: systemMetrics.sysCores },
                         { l: "Memoria RAM", v: systemMetrics.sysRam }
                     ]
                     RowLayout {
@@ -295,4 +295,3 @@ Rectangle {
         }
     }
 }
-
