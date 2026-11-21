@@ -9,11 +9,12 @@ from nova.storage.paths import (
     default_database_path,
     default_logs_dir,
 )
+from nova.runtime import app_root
 
 logger = get_logger(__name__)
 
 # src/nova/main.py -> raíz del proyecto (no depende del directorio actual).
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = app_root()
 
 
 def create_configuration() -> ConfigurationService:

@@ -5,16 +5,6 @@ import QtQuick
 // Para conectar datos reales: sustituye estas propiedades por modelos/propiedades de `backend`
 // (por ejemplo `readonly property var projects: backend.projects`) y el resto de la UI no cambia.
 QtObject {
-    // ---- Proyectos --------------------------------------------------------
-    // st: "En progreso" | "En pausa" | "Completado"   p: 0-100
-    readonly property var projects: [
-        { t: "NOVA - Asistente Personal", d: "Desarrollo y mejora continua de NOVA.", st: "En progreso", p: 65 },
-        { t: "Sistema de Automatización", d: "Automatización de tareas diarias.", st: "En pausa", p: 60 },
-        { t: "Proyecto Creativo", d: "Ideas y diseños futuros.", st: "En progreso", p: 20 },
-        { t: "Documentación", d: "Guías y documentación técnica.", st: "Completado", p: 100 },
-        { t: "Aprendizaje", d: "Cursos y desarrollo personal.", st: "En progreso", p: 80 },
-        { t: "Vida Personal", d: "Metas y organización.", st: "En progreso", p: 38 }
-    ]
 
     // ---- Memoria ----------------------------------------------------------
     // ic: nombre de icono en assets/icons (sin sufijo)
@@ -30,18 +20,6 @@ QtObject {
         { ic: "chat", t: "Reunión con el equipo", s: "Actualizado ayer" }
     ]
 
-    // ---- Dashboard --------------------------------------------------------
-    // ic: "orb" muestra el orbe; cualquier otro valor es un icono de assets/icons
-    readonly property var activity: [
-        { ic: "orb", who: "NOVA", what: "Procesando solicitud de usuario", when: "Hace 2 min" },
-        { ic: "doc", who: "Sistema", what: "Sincronizando memoria", when: "Hace 5 min" },
-        { ic: "folder", who: "Proyectos", what: "Guardado automático", when: "Hace 12 min" },
-        { ic: "windows", who: "Windows", what: "Conexión establecida", when: "Hace 1 h" },
-        { ic: "memory", who: "Memoria", what: "Nueva nota importante guardada", when: "Hace 2 h" },
-        { ic: "chat", who: "Conversación", what: "Resumen de la reunión generado", when: "Hace 3 h" },
-        { ic: "cpu", who: "Sistema", what: "Optimización de recursos completada", when: "Hace 5 h" },
-        { ic: "folder", who: "Proyectos", what: "Proyecto Creativo actualizado", when: "Ayer" }
-    ]
     // pg: índice de página (0 Inicio, 1 Conversación, 2 Memoria, 3 Proyectos, 4 Dashboard, 5 Configuración); -1 = sin acción
     readonly property var quickActions: [
         { ic: "folderplus", t: "Crear proyecto", pg: 3 },

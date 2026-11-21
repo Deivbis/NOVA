@@ -290,6 +290,58 @@ Decisiones tomadas donde la documentación oficial no definía el detalle
   reversible). El medidor muestra el % de recuerdos aprendidos.
 - **P-036** Memoria sin paginación (máx. 500 filas en pantalla).
 
+- **D-042 Proyectos en la UI (10.3).** Migración v008 (`projects`). Estado
+  `active|paused|done`; progreso manual 0-100 (`done` fuerza 100). Banner
+  estable derivado del id. Auditoría sin nombre ni descripción. Borrado
+  definitivo con doble toque (sin papelera). La página usa `ProjectsPanel`
+  (sin Qt) sobre `ProjectService`; el puente `novaProjects` solo adapta tipos.
+- **P-037** Proyectos sin vínculo con chats, memoria ni tareas; sin paginación.
+
+- **D-043 Dashboard real (10.4).** «Actividad reciente» sale de `audit_logs`
+  (solo acción y fecha; la auditoría no guarda contenido). El rango (7/30/90
+  días) filtra la actividad y el contador. `memory.read` se oculta. Se
+  refresca al abrir, cada 10 s y al cambiar chat, memoria o proyectos.
+  Métricas del sistema ya eran reales (`systemMetrics`).
+- **P-038** Actividad limitada a 50 filas; sin agrupar eventos repetidos.
+- **P-039** «Accesos rápidos» sigue estático («Ayuda» sin acción).
+
+- **D-044 Configuración (10.5).** Nombre editable (`set_user_name`, 1-40 car.,
+  `settings.json`). Cambiar personalidad desde Configuración usa
+  `IdentityService.switch` sin mensaje en el chat y alinea la voz (SPEC-002/008);
+  los chips de «Voz» siguen permitiendo cambiarla aparte. Aprendizaje: interruptor
+  y propuestas pendientes confirmables/rechazables. Plugins: la UI muestra
+  permisos y red antes de activar; «Conceder permisos y activar» es el
+  consentimiento explícito (si falla el arranque, se revocan los permisos recién
+  concedidos); «Revocar permisos» desactiva el plugin. Puente `novaSettings`
+  sobre `SettingsPanel` (sin Qt).
+- **P-040** Activar un plugin arranca su subproceso en el hilo de la UI; puede
+  notarse una pausa breve.
+- **P-030, P-031, P-032 y P-033 siguen abiertos** (sandbox/firma, versión
+  duplicada, eventos y actualizaciones de plugins): son de motor, no de UI.
+
+- **D-045 Voz mientras se escribe (cierra P-014).** `VoiceService.begin_stream`
+  devuelve un `SpeechStream` que recibe los fragmentos del modelo, corta por
+  frase (≥25 car., sin bloques de código) y las sintetiza en cola con
+  prefetch. Al terminar se añade la propuesta de aprendizaje, si la hay. Si
+  falla la solicitud se cancela la voz; si no hubo streaming, se habla la
+  respuesta completa como antes.
+- **D-046 Notificaciones de recordatorios (parcial P-028).** `reminderDue` →
+  `QSystemTrayIcon.showMessage` solo si NOVA no es la ventana activa. P-028
+  sigue abierto: no hay servicio en segundo plano; con la app cerrada no
+  avisa.
+- **D-047 Versión 0.10.0.** pyproject, `config/default.toml` y `NOVA_VERSION`
+  coinciden (test `test_versions`); cierra P-031.
+- **P-041** `QSystemTrayIcon` con `QGuiApplication`: verificar en Windows; si
+  falla, pasar a `QApplication`.
+
+- **D-048 Empaquetado (cierre Fase 10).** Nuitka standalone con
+  `scripts/build_windows.ps1`. `nova.runtime` resuelve raíz y plugins tanto en
+  desarrollo como compilado. El `.exe` actúa como runner de plugins con
+  `--plugin-runner <carpeta>` (`nova.launcher`). Datos en `%APPDATA%\NOVA`.
+- **P-042** Primer build sin verificar: faltantes de módulos u DLL se corrigen
+  con `--include-*`. Plugins de terceros solo pueden usar la librería
+  estándar incluida en el build.
+  
 ## Pendientes
 
 - **P-001 Ubicación de la base de datos.** DOC-016: `data/nova.db`. Código:

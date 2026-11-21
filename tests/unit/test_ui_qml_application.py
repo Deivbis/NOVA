@@ -155,9 +155,21 @@ def startup_mocks(monkeypatch, tmp_path):
         lambda: tmp_path / "nova.db",
     )
     monkeypatch.setattr(
-    application,
-    "MemoryUiBridge",
-    lambda _service, _parent: MagicMock(),
+        application,
+        "MemoryUiBridge",
+        lambda _service, _parent: MagicMock(),
+    )
+
+    monkeypatch.setattr(
+        application,
+        "ProjectsUiBridge",
+        lambda _service, _parent: MagicMock(),
+    )
+    
+    monkeypatch.setattr(
+    application.QSystemTrayIcon,
+    "isSystemTrayAvailable",
+    staticmethod(lambda: False),
     )
 
     return {

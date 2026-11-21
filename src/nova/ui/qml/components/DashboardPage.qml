@@ -7,6 +7,22 @@ Rectangle {
     id: page
     property string orbMode: "idle"
     property int rangeIdx: 0
+    readonly property var rangeDays: [7, 30, 90]
+    property var activity: []
+    property int activityTotal: 0
+
+    function refreshActivity() {
+        var r = novaActivity.recent(rangeDays[rangeIdx])
+        activity = r.items
+        activityTotal = r.total
+    }
+    Component.onCompleted: refreshActivity()
+    onVisibleChanged: if (visible) refreshActivity()
+    onRangeIdxChanged: refreshActivity()
+    Timer { interval: 10000; running: page.visible; repeat: true; onTriggered: page.refreshActivity() }
+    Connections { target: novaBridge; function onConversationChanged() { if (page.visible) page.refreshActivity() } }
+    Connections { target: novaMemory; function onChanged() { if (page.visible) page.refreshActivity() } }
+    Connections { target: novaProjects; function onChanged() { if (page.visible) page.refreshActivity() } }
     signal navigate(int page)
     color: "#050b22"
 
@@ -28,7 +44,6 @@ Rectangle {
         net:  { t: "Red",     c: "#4a9bff", sc: "#2fe0a0" }
     })
     readonly property var ranges: ["Últimos 7 días", "Últimos 30 días", "Últimos 90 días"]
-    readonly property var activity: AppData.activity
     readonly property var quick: AppData.quickActions
     readonly property var assistText: ({ idle: "En espera...", listening: "Escuchando...", processing: "Procesando...", responding: "Respondiendo...", error: "Requiere atención" })
 
@@ -133,10 +148,12 @@ Rectangle {
                     Layout.preferredWidth: 3; Layout.preferredHeight: 1
                     radius: 14
                     NText { x: 18; y: 16; text: "Actividad reciente"; font.pixelSize: 14; font.bold: true }
+                    NText { anchors { right: parent.right; top: parent.top; rightMargin: 18; topMargin: 18 } text: page.activityTotal + " eventos"; font.pixelSize: 10; color: "#5d7bc0" }
+                    NText { visible: page.activity.length === 0; anchors.centerIn: parent; text: "Sin actividad en este rango."; font.pixelSize: 12; color: "#6f8fe0" }
                     Column {
                         anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: 18; rightMargin: 18; topMargin: 50 }
                         Repeater {
-                            model: Math.max(1, Math.min(page.activity.length, Math.floor((actCard.height - 66) / 58)))
+                            model: Math.min(page.activity.length, Math.max(0, Math.floor((actCard.height - 66) / 58)))
                             Item {
                                 id: ar
                                 required property int index

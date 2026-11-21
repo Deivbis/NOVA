@@ -8,7 +8,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-
+from nova.runtime import plugin_runner_command
 import nova
 from nova.core.logging_setup import get_logger
 from nova.core.result import Result
@@ -62,8 +62,7 @@ class PluginProcess:
         self._queue = queue.Queue()
         self._ready = False
         self._proc = subprocess.Popen(
-            [sys.executable, "-m", "nova.plugin_sdk.runner",
-             str(self._manifest.path)],
+            plugin_runner_command(self._manifest.path),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,

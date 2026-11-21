@@ -129,6 +129,7 @@ class NovaUiBridge(QObject):
     userNameChanged = Signal()
     permanentOrbChanged = Signal()
     pluginMainCall = Signal(object)
+    reminderDue = Signal(str)
 
     def __init__(
         self,
@@ -165,6 +166,7 @@ class NovaUiBridge(QObject):
         self._transient_errors: dict[UUID, str] = {}
         self._shutting_down = False
         self._streams: dict[UUID, str] = {}
+        self._speech = None
         self._current_page = 0
         self._voice_provider = ""
         self._ui_settings = load_ui_settings()
@@ -582,8 +584,9 @@ class NovaUiBridge(QObject):
         if request.status == RequestStatus.COMPLETED:
             self._orchestrator.set_state(NovaState.SPEAKING)
 
-            if self._voice_service is not None:
-                self._voice_service.speak(reply)
+            self._finish_speech(reply, result.value)
+        else:
+            self._cancel_speech()
 
     @Slot()
     def _on_worker_thread_finished(self) -> None:
@@ -695,6 +698,8 @@ class NovaUiBridge(QObject):
 
         if message:
             self._reply_locally(self._conversation.conversation_id, message)
+            self.reminderDue.emit(message)
+            
     @Slot(object)
     def _run_on_main(self, job) -> None:
         fn, future = job
@@ -734,6 +739,24 @@ class NovaUiBridge(QObject):
 
         if self._voice_service is not None:
             self._voice_service.speak(reply)
+
+    def _finish_speech(self, reply: str, streamed: str) -> None:
+        speech, self._speech = self._speech, None
+
+        if self._voice_service is None:
+            return
+
+        if speech is None:
+            self._voice_service.speak(reply)
+            return
+
+        speech.end(reply[len(streamed):] if reply.startswith(streamed) else "")
+
+    def _cancel_speech(self) -> None:
+        speech, self._speech = self._speech, None
+
+        if speech is not None:
+            speech.cancel()
 
     def _get_active_identity(self) -> str:
         if self._identity_service is None:
@@ -1110,7 +1133,16 @@ class NovaUiBridge(QObject):
             if self._orchestrator.state == NovaState.PROCESSING:
                 self._orchestrator.set_state(NovaState.SPEAKING)
 
+            self._cancel_speech()
+
+            if self._voice_service is not None:
+                self._speech = self._voice_service.begin_stream()
+
         self._streams[cid] += delta
+
+        if self._speech is not None:
+            self._speech.feed(delta)
+
         self.streamChunk.emit(str(cid), delta)
 
     # --- Usuario y orbe permanente ----------------------------------------
@@ -1128,6 +1160,39 @@ class NovaUiBridge(QObject):
         )
         save_ui_settings(self._ui_settings)
         self.permanentOrbChanged.emit()
+
+    @Slot(str, result=bool)
+    def set_user_name(self, name: str) -> bool:
+        clean = " ".join(name.split())
+
+        if not clean or len(clean) > 40:
+            return False
+
+        self._ui_settings = dataclasses.replace(
+            self._ui_settings, user_name=clean
+        )
+        save_ui_settings(self._ui_settings)
+        self.userNameChanged.emit()
+
+        return True
+
+    @Slot(str)
+    def set_assistant_identity(self, identity: str) -> None:
+        if self._identity_service is None:
+            return
+
+        try:
+            target = Identity(identity)
+        except ValueError:
+            return
+
+        self._identity_service.switch(target)
+
+        if self._voice_service is not None:
+            self._voice_service.update_settings(identity=target)
+            self.voiceSettingsChanged.emit()
+
+        self.identityChanged.emit()
 
     # --- Voz: estado real y prueba -----------------------------------------
     voiceOnline = Property(

@@ -12,6 +12,7 @@ import dataclasses
 import threading
 from collections.abc import Callable
 from typing import Any
+import queue
 
 from nova.core.events import Event, EventNames
 from nova.core.identity import Identity
@@ -22,6 +23,7 @@ from nova.core.state import NovaState
 from nova.voice.audio_player import AudioPlayer
 from nova.voice.contracts import AudioData
 from nova.voice.settings import VoiceSettings
+from nova.voice.speech_stream import SpeechStream
 from nova.voice.speech_text import prepare_speech
 from nova.voice.tts_router import TTSRouter
 
@@ -155,6 +157,130 @@ class VoiceService:
             EventNames.VOICE_SPEAKING_FINISHED,
             {"cancelled": True},
         )
+        
+    def begin_stream(self) -> SpeechStream | None:
+        """Abre una locución que se alimenta mientras el modelo escribe."""
+        with self._lock:
+            if self._closed or not self._settings.enabled:
+                return None
+
+            self._generation += 1
+            generation = self._generation
+            interrupting = self._speaking
+            self._speaking = True
+            identity = self._settings.identity
+
+        if interrupting:
+            self._player.stop()
+
+        self._core.set_state(NovaState.SPEAKING)
+        feed: queue.Queue = queue.Queue()
+        thread = self._thread_factory(
+            target=self._run_stream,
+            args=(generation, feed, identity),
+            name="nova-voice",
+            daemon=True,
+        )
+        self._thread = thread
+        thread.start()
+
+        return SpeechStream(self, generation, feed)
+
+    def is_current(self, generation: int) -> bool:
+        return not self._is_stale(generation)
+
+    def cancel_stream(self, generation: int) -> None:
+        if not self._is_stale(generation):
+            self.stop()
+
+    def _next_sentence(self, feed: queue.Queue, generation: int) -> str | None:
+        while True:
+            try:
+                return feed.get(timeout=0.25)
+            except queue.Empty:
+                if self._is_stale(generation):
+                    return None
+
+    def _run_stream(
+        self, generation: int, feed: queue.Queue, identity: Identity
+    ) -> None:
+        started = False
+
+        try:
+            item = self._next_sentence(feed, generation)
+            pending = (
+                None if item is None
+                else self._prefetch(generation, item, identity)
+            )
+
+            while pending is not None:
+                synthesized = pending.result()
+
+                if self._is_stale(generation) or synthesized is None:
+                    return
+
+                upcoming, finished = None, False
+
+                try:
+                    queued = feed.get_nowait()
+                    finished = queued is None
+                    upcoming = (
+                        None if finished
+                        else self._prefetch(generation, queued, identity)
+                    )
+                except queue.Empty:
+                    pass
+
+                if not synthesized.success:
+                    self._publish_error(synthesized.error)
+                    return
+
+                audio = synthesized.value
+
+                if not started:
+                    started = True
+                    self._publish(
+                        EventNames.VOICE_SPEAKING_STARTED,
+                        {
+                            "provider": audio.provider,
+                            "identity": identity.value,
+                            "streamed": True,
+                        },
+                    )
+
+                played = self._player.play(audio)
+
+                if self._is_stale(generation):
+                    return
+
+                if not played.success:
+                    self._publish_error(played.error)
+                    return
+
+                if upcoming is not None:
+                    pending = upcoming
+                elif finished:
+                    pending = None
+                else:
+                    item = self._next_sentence(feed, generation)
+                    pending = (
+                        None if item is None
+                        else self._prefetch(generation, item, identity)
+                    )
+
+        except Exception:
+            logger.exception("Fallo inesperado en la voz en streaming.")
+
+            if not self._is_stale(generation):
+                self._publish_error(
+                    Failure(
+                        code="VOICE_UNEXPECTED_ERROR",
+                        message="Ocurrió un error inesperado al hablar.",
+                    )
+                )
+
+        finally:
+            self._finish(generation)
 
     def update_settings(
         self,

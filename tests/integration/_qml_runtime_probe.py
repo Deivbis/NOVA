@@ -227,6 +227,13 @@ class FakeMetrics(QObject):
     sysCores = Property(str, lambda self: "-")
     sysRam = Property(str, lambda self: "-")
 
+class FakeActivityBridge(QObject):
+    @Slot(int, result="QVariantMap")
+    def recent(self, days):
+        return {
+            "items": [],
+            "total": 0,
+        }
 
 def main():
     qInstallMessageHandler(message_handler)
@@ -236,12 +243,19 @@ def main():
     metrics = FakeMetrics()
     memory_bridge = FakeMemoryBridge()
     engine = QQmlApplicationEngine()
+    projects_bridge = FakeProjectsBridge()
+    activity_bridge = FakeActivityBridge()
+    settings_bridge = FakeSettingsBridge()
+
 
     qml_dir = Path(__file__).resolve().parents[2] / "src" / "nova" / "ui" / "qml"
 
     engine.rootContext().setContextProperty("novaBridge", bridge)
     engine.rootContext().setContextProperty("systemMetrics", metrics)
     engine.rootContext().setContextProperty("novaMemory", memory_bridge)
+    engine.rootContext().setContextProperty("novaProjects", projects_bridge)
+    engine.rootContext().setContextProperty("novaActivity", activity_bridge)
+    engine.rootContext().setContextProperty("novaSettings", settings_bridge)
 
     main_qml = qml_dir / "Main.qml"
     orb_qml = qml_dir / "PermanentOrb.qml"
@@ -249,7 +263,10 @@ def main():
     engine.load(QUrl.fromLocalFile(str(main_qml)))
 
     if not engine.rootObjects():
-        raise RuntimeError("Main.qml no creó ningún objeto raíz")
+        raise RuntimeError(
+            "Main.qml no creó ningún objeto raíz.\n"
+            + "\n".join(qml_messages)
+        )
 
     engine.load(QUrl.fromLocalFile(str(orb_qml)))
 
@@ -328,6 +345,71 @@ def main():
     print(f"Página recibida por el bridge: {bridge.current_page}")
 
     return 0
+
+class FakeProjectsBridge(QObject):
+    changed = Signal()
+
+    def __init__(self):
+        super().__init__()
+
+    maxName = Property(int, lambda self: 80, constant=True)
+    maxDescription = Property(int, lambda self: 300, constant=True)
+
+    @Slot(str, str, result="QVariantList")
+    def items(self, query, status):
+        return []
+
+    @Slot(str, str, result="QVariantMap")
+    def create(self, name, description):
+        return {"ok": True, "id": "test-project"}
+
+    @Slot(str, str, str, str, int, result="QVariantMap")
+    def update(self, project_id, name, description, status, progress):
+        return {"ok": True, "id": project_id}
+
+    @Slot(str, result="QVariantMap")
+    def delete(self, project_id):
+        return {"ok": True}
+
+class FakeSettingsBridge(QObject):
+    changed = Signal()
+
+    @Slot(result="QVariantMap")
+    def learningState(self):
+        return {
+            "available": False,
+            "enabled": False,
+            "pending": [],
+            "learned": 0,
+        }
+
+    @Slot(result="QVariantList")
+    def plugins(self):
+        return []
+
+    @Slot(bool, result="QVariantMap")
+    def setLearning(self, enabled):
+        return {"ok": True}
+
+    @Slot(str, bool, result="QVariantMap")
+    def resolveCandidate(self, candidate_id, accept):
+        return {"ok": True}
+
+    @Slot(str, result="QVariantMap")
+    def activatePlugin(self, plugin_id):
+        return {"ok": True}
+
+    @Slot(str, result="QVariantMap")
+    def deactivatePlugin(self, plugin_id):
+        return {"ok": True}
+
+    @Slot(str, result="QVariantMap")
+    def revokePlugin(self, plugin_id):
+        return {"ok": True}
+
+    @Slot(result="QVariantMap")
+    def reloadPlugins(self):
+        return {"ok": True}
 
 
 if __name__ == "__main__":
