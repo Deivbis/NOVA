@@ -4,7 +4,7 @@ from nova.plugins.handler import PluginCommandHandler
 from nova.plugins.manager import PluginManager
 
 # Mantener igual a la versión de pyproject.toml / config.
-NOVA_VERSION = "0.9.0"
+NOVA_VERSION = "0.10.0"
 
 __all__ = [
     "NOVA_VERSION",

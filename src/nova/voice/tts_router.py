@@ -46,6 +46,7 @@ class TTSRouter:
         self._clock = clock
         self._retry_seconds = retry_seconds
         self._online_blocked_until = 0.0
+        self.last_online_error: str | None = None
 
     @property
     def prefer_online(self) -> bool:
@@ -64,7 +65,12 @@ class TTSRouter:
             result = self._online.synthesize(text, identity)
 
             if result.success:
+                self.last_online_error = None
                 return result
+            
+            self.last_online_error = (
+                result.error.code if result.error else "UNKNOWN"
+            )
 
             self._online_blocked_until = (
                 self._clock() + self._retry_seconds

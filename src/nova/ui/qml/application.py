@@ -1,8 +1,9 @@
 ﻿from pathlib import Path
 import os
 import sys
-
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QGuiApplication, QIcon
+from PySide6.QtWidgets import QSystemTrayIcon
 from PySide6.QtQml import QQmlApplicationEngine
 from nova.ai import LocalAIService
 from nova.core import Capability
@@ -13,12 +14,16 @@ from nova.storage.paths import (
     default_logs_dir,
     default_voices_dir,
 )
+from nova.runtime import plugins_dir
+from nova.activity import ActivityService
+from nova.ui.qml.activity_bridge import ActivityUiBridge
 from nova.tasks import TaskService
 from nova.memory import MemoryService
 from nova.storage.service import StorageService
 from nova.ui.qml.bridge import NovaUiBridge
 from nova.ui.qml.hotkey_filter import HotkeyFilter
 from nova.ui.qml.windows_orb import WindowsOrbController
+from nova.ui.qml.memory_bridge import MemoryUiBridge
 from nova.voice import (
     EdgeTTSProvider,
     FasterWhisperSTT,
@@ -44,6 +49,11 @@ from nova.learning import LearningService
 from nova.automation import AutomationService, WindowsSystemProvider
 from nova.core import RiskLevel
 from nova.security import SecurityService
+from PySide6.QtQuickControls2 import QQuickStyle
+from nova.ui.system_metrics import SystemMetrics
+from nova.ui.qml.project_bridge import ProjectsUiBridge
+from nova.projects import ProjectService
+from nova.ui.qml.settings_bridge import SettingsUiBridge
 
 logger = get_logger(__name__)
 
@@ -87,6 +97,7 @@ def main() -> int:
 
     try:
         app = QGuiApplication(sys.argv)
+        QQuickStyle.setStyle("Basic")
 
         try:
             config = create_configuration().initialize()
@@ -182,7 +193,7 @@ def main() -> int:
             )
             main_thread = MainThread()
             plugin_manager = PluginManager(
-                Path(__file__).resolve().parents[4] / "plugins",
+                plugins_dir(),
                 storage_service.plugin_repository,
                 storage_service.permission_repository,
                 lambda manifest: PluginAPI(
@@ -221,7 +232,7 @@ def main() -> int:
                      "learning.enabled", "1" if value else "0"
                  ),
              )
-            
+
             orchestrator.capabilities.register(
                 Capability(
                     id="memory",
@@ -255,6 +266,30 @@ def main() -> int:
                 "novaBridge",
                 bridge,
             )
+
+            metrics = SystemMetrics()
+            engine.rootContext().setContextProperty("systemMetrics", metrics)
+            engine.rootContext().setContextProperty(
+                "novaMemory", MemoryUiBridge(memory_service, app)
+            )
+            engine.rootContext().setContextProperty(
+                "novaProjects",
+                ProjectsUiBridge(
+                    ProjectService(storage_service.project_repository), app
+                ),
+            )
+            engine.rootContext().setContextProperty(
+                "novaActivity",
+                ActivityUiBridge(
+                    ActivityService(storage_service.audit_repository), app
+                ),
+            )
+            engine.rootContext().setContextProperty(
+                "novaSettings",
+                SettingsUiBridge(learning_service, plugin_manager, app),
+            )
+
+            engine.addImportPath(str(Path(__file__).parent))
 
             qml_path = Path(__file__).parent
             main_qml = qml_path / "Main.qml"
@@ -293,6 +328,24 @@ def main() -> int:
                     bridge.orbState
                 )
             )
+            tray = None
+
+            if QSystemTrayIcon.isSystemTrayAvailable():
+                tray = QSystemTrayIcon(
+                    QIcon(str(Path(__file__).parents[1] / "assets" / "orb" / "idle_core.png")),
+                    app,
+                )
+                tray.setToolTip("NOVA")
+                tray.show()
+
+                def notify_reminder(message: str) -> None:
+                    if app.applicationState() != Qt.ApplicationState.ApplicationActive:
+                        tray.showMessage(
+                            "NOVA", message,
+                            QSystemTrayIcon.MessageIcon.Information, 8000,
+                        )
+
+                bridge.reminderDue.connect(notify_reminder)
 
             app.installNativeEventFilter(
                 orb_controller.native_filter,

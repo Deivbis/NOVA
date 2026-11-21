@@ -1,0 +1,16 @@
+singleton Theme 1.0 Theme.qml
+singleton AppData 1.0 AppData.qml
+Orb 1.0 Orb.qml
+Card 1.0 Card.qml
+NText 1.0 NText.qml
+Chip 1.0 Chip.qml
+NovaBar 1.0 NovaBar.qml
+LineChart 1.0 LineChart.qml
+Gauge 1.0 Gauge.qml
+Sidebar 1.0 Sidebar.qml
+HomePage 1.0 HomePage.qml
+ConversationPage 1.0 ConversationPage.qml
+MemoryPage 1.0 MemoryPage.qml
+ProjectsPage 1.0 ProjectsPage.qml
+DashboardPage 1.0 DashboardPage.qml
+SettingsPage 1.0 SettingsPage.qml

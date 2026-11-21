@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -19,6 +19,7 @@ DEFAULT_MODEL = "qwen3:4b-instruct"
 _THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL)
 
 Transport = Callable[[str, dict[str, Any], int], Any]
+StreamTransport = Callable[[str, dict[str, Any], int], Iterator[Any]]
 
 
 def _post_json(
@@ -36,6 +37,23 @@ def _post_json(
     with urlopen(request, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
     
+def _post_stream(
+    url: str,
+    payload: dict[str, Any],
+    timeout: int,
+) -> Iterator[Any]:
+    request = Request(
+        url=url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    with urlopen(request, timeout=timeout) as response:
+        for line in response:
+            if line.strip():
+                yield json.loads(line.decode("utf-8"))
+
 def strip_reasoning(text: str) -> str:
     """Remove chain-of-thought that some models include in their answer.
 
@@ -70,12 +88,14 @@ class LocalAIService:
         timeout: int = 120,
         keep_alive: str = "2m",
         transport: Transport | None = None,
+        stream_transport: StreamTransport | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout = timeout
         self.keep_alive = keep_alive
         self._transport = transport or _post_json
+        self._stream_transport = stream_transport or _post_stream
 
     def chat(self, messages: list[dict[str, str]]) -> Result[str]:
         """Generate the next assistant answer for a conversation."""
@@ -154,6 +174,87 @@ class LocalAIService:
             )
 
         return Result.ok(content)
+    def chat_stream(
+        self,
+        messages: list[dict[str, str]],
+        on_chunk: Callable[[str], None],
+    ) -> Result[str]:
+        """Como chat(), pero entrega el texto a `on_chunk` mientras llega."""
+        invalid = self._validate_messages(messages)
+
+        if invalid is not None:
+            return invalid
+
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "stream": True,
+            "think": False,
+            "keep_alive": self.keep_alive,
+            "options": {"num_ctx": 4096, "temperature": 0.7},
+        }
+        raw, sent = "", 0
+
+        try:
+            for data in self._stream_transport(
+                f"{self.base_url}/api/chat", payload, self.timeout
+            ):
+                if not isinstance(data, dict):
+                    continue
+
+                message = data.get("message")
+                piece = (
+                    message.get("content")
+                    if isinstance(message, dict)
+                    else None
+                )
+
+                if isinstance(piece, str) and piece:
+                    raw += piece
+                    visible = strip_reasoning(raw)
+
+                    if len(visible) > sent:
+                        self._deliver(on_chunk, visible[sent:])
+                        sent = len(visible)
+
+                if data.get("done"):
+                    break
+
+        except HTTPError as exc:
+            logger.warning("Ollama respondió con error HTTP %s.", exc.code)
+            return Result.fail(
+                code="OLLAMA_HTTP_ERROR",
+                message=f"Ollama respondió con el error HTTP {exc.code}.",
+            )
+        except (URLError, TimeoutError, OSError) as exc:
+            logger.warning("No se pudo conectar con Ollama: %s", exc)
+            return Result.fail(
+                code="OLLAMA_CONNECTION_ERROR",
+                message="No se pudo conectar con Ollama. ¿Está en ejecución?",
+            )
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            logger.warning("Ollama devolvió una respuesta ilegible.")
+            return Result.fail(
+                code="OLLAMA_INVALID_RESPONSE",
+                message="Ollama devolvió una respuesta no válida.",
+            )
+
+        content = strip_reasoning(raw)
+
+        if not content:
+            return Result.fail(
+                code="EMPTY_AI_RESPONSE",
+                message="Ollama devolvió una respuesta vacía.",
+            )
+
+        return Result.ok(content)
+
+    @staticmethod
+    def _deliver(on_chunk: Callable[[str], None], text: str) -> None:
+        try:
+            on_chunk(text)
+        except Exception:
+            logger.warning("No se pudo entregar un fragmento de la respuesta.")
 
     def generate(self, prompt: str) -> Result[str]:
         """Generate an answer for a single message without history."""
@@ -176,8 +277,12 @@ class LocalAIService:
             )
 
         messages = command.payload.get("messages")
+        on_chunk = command.payload.get("on_chunk")
 
         if messages is not None:
+            if callable(on_chunk):
+                return self.chat_stream(messages, on_chunk)
+            
             return self.chat(messages)
 
         prompt = command.payload.get("message")

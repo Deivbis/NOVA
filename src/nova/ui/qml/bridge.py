@@ -44,18 +44,42 @@ from nova.tasks import TaskCommandHandler, TaskService
 from nova.storage.repositories.routine_repository import RoutineRepository
 from concurrent.futures import Future
 from nova.plugins import MainThread, PluginCommandHandler
+import dataclasses
+from datetime import datetime
+from nova.ui.ui_settings import load_ui_settings, save_ui_settings
 
 logger = get_logger(__name__)
 
 ERROR_DISPLAY_MS = 2500
 REMINDER_CHECK_MS = 15000
 SHUTDOWN_WAIT_MS = 3000
+_WEEKDAYS = ("Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom")
 MAIN_CALL_TIMEOUT_S = 10
+
+def _friendly_time(iso: str) -> str:
+    try:
+        moment = datetime.fromisoformat(iso).astimezone()
+    except ValueError:
+        return ""
+
+    days = (datetime.now().astimezone().date() - moment.date()).days
+
+    if days <= 0:
+        return moment.strftime("%H:%M")
+
+    if days == 1:
+        return "Ayer"
+
+    if days < 7:
+        return _WEEKDAYS[moment.weekday()]
+
+    return moment.strftime("%d/%m")
 
 class RequestWorker(QObject):
     """Execute one NOVA request outside the UI thread."""
 
     completed = Signal(object, object)
+    chunk = Signal(str)
 
     def __init__(
         self,
@@ -69,9 +93,12 @@ class RequestWorker(QObject):
     @Slot()
     def run(self) -> None:
         try:
+            command = self._request.command
+            payload = {**command.payload, "on_chunk": self.chunk.emit}
             result = self._orchestrator.dispatch(
-                self._request.command
+                dataclasses.replace(command, payload=payload)
             )
+
         except Exception as exc:
             result = Result.fail(
                 code="REQUEST_EXECUTION_ERROR",
@@ -94,7 +121,15 @@ class NovaUiBridge(QObject):
     voiceErrorRaised = Signal(str)
     voiceTranscriptReady = Signal(str)
     identityChanged = Signal()
+    streamChunk = Signal(str, str)
+    requestFinished = Signal(str)
+    localReply = Signal()
+    navigateRequested = Signal(int)
+    voiceProviderRaised = Signal(str)
+    userNameChanged = Signal()
+    permanentOrbChanged = Signal()
     pluginMainCall = Signal(object)
+    reminderDue = Signal(str)
 
     def __init__(
         self,
@@ -130,10 +165,17 @@ class NovaUiBridge(QObject):
         self._requests_by_conversation: dict[UUID, int] = {}
         self._transient_errors: dict[UUID, str] = {}
         self._shutting_down = False
+        self._streams: dict[UUID, str] = {}
+        self._speech = None
+        self._current_page = 0
+        self._voice_provider = ""
+        self._ui_settings = load_ui_settings()
+        self._unsubscribe_voice_started = None
         self._voice_service = voice_service
         self._voice_input = voice_input
         self._identity_service = identity_service
         self._memory_service = memory_service
+
         self._memory_handler = (
             MemoryCommandHandler(memory_service)
             if memory_service is not None
@@ -197,9 +239,16 @@ class NovaUiBridge(QObject):
 
         if voice_service is not None or voice_input is not None:
             self.voiceErrorRaised.connect(self._on_voice_error)
+            self.voiceProviderRaised.connect(self._on_voice_provider)
+
             self._unsubscribe_voice_errors = orchestrator.subscribe(
                 self._on_voice_event,
                 event_name=EventNames.VOICE_ERROR,
+            )
+
+            self._unsubscribe_voice_started = orchestrator.subscribe(
+                self._on_voice_started,
+                event_name=EventNames.VOICE_SPEAKING_STARTED,
             )
 
         if voice_input is not None:
@@ -437,6 +486,7 @@ class NovaUiBridge(QObject):
 
         thread.started.connect(worker.run)
         worker.completed.connect(self._on_request_completed)
+        worker.chunk.connect(self._on_stream_chunk)
         worker.completed.connect(thread.quit)
 
         thread.finished.connect(worker.deleteLater)
@@ -496,9 +546,12 @@ class NovaUiBridge(QObject):
                     assistant_message,
                 )
 
+                self.requestFinished.emit(str(conversation_id))
+
                 request.status = RequestStatus.COMPLETED
 
                 if self._conversation.conversation_id == conversation_id:
+                    self._streams.pop(conversation_id, None)
                     self._conversation = conversation
                     self.conversationChanged.emit()
 
@@ -522,18 +575,18 @@ class NovaUiBridge(QObject):
         ) - 1
 
         if remaining <= 0:
-            self._requests_by_conversation.pop(
-                conversation_id,
-                None,
-            )
+            self._requests_by_conversation.pop(conversation_id, None)
         else:
             self._requests_by_conversation[conversation_id] = remaining
+
+        self.requestFinished.emit(str(conversation_id))
 
         if request.status == RequestStatus.COMPLETED:
             self._orchestrator.set_state(NovaState.SPEAKING)
 
-            if self._voice_service is not None:
-                self._voice_service.speak(reply)
+            self._finish_speech(reply, result.value)
+        else:
+            self._cancel_speech()
 
     @Slot()
     def _on_worker_thread_finished(self) -> None:
@@ -623,6 +676,7 @@ class NovaUiBridge(QObject):
         assistant_message = self._conversation.add_assistant_message(reply)
         self._repository().add_message(conversation_id, assistant_message)
 
+        self.localReply.emit()
         self.conversationChanged.emit()
         self.conversationsChanged.emit()
         self.identityChanged.emit()
@@ -644,6 +698,8 @@ class NovaUiBridge(QObject):
 
         if message:
             self._reply_locally(self._conversation.conversation_id, message)
+            self.reminderDue.emit(message)
+            
     @Slot(object)
     def _run_on_main(self, job) -> None:
         fn, future = job
@@ -679,9 +735,28 @@ class NovaUiBridge(QObject):
 
         self.conversationChanged.emit()
         self.conversationsChanged.emit()
+        self.localReply.emit()
 
         if self._voice_service is not None:
             self._voice_service.speak(reply)
+
+    def _finish_speech(self, reply: str, streamed: str) -> None:
+        speech, self._speech = self._speech, None
+
+        if self._voice_service is None:
+            return
+
+        if speech is None:
+            self._voice_service.speak(reply)
+            return
+
+        speech.end(reply[len(streamed):] if reply.startswith(streamed) else "")
+
+    def _cancel_speech(self) -> None:
+        speech, self._speech = self._speech, None
+
+        if speech is not None:
+            speech.cancel()
 
     def _get_active_identity(self) -> str:
         if self._identity_service is None:
@@ -730,9 +805,14 @@ class NovaUiBridge(QObject):
 
     @Slot(str)
     def _on_voice_transcript(self, text: str) -> None:
-        # Llega desde el hilo de entrada de voz; aquí ya estamos en el hilo
-        # principal. Se envía como si lo hubieras escrito.
-        self.send_message(text)
+        if not text.strip() or self._shutting_down:
+            return
+
+        if self._current_page == 0:  # pantalla de inicio: chat nuevo
+            self.start_conversation_with(text)
+            self.navigateRequested.emit(1)
+        else:
+            self.send_message(text)
 
     @Slot()
     def toggle_voice_input(self) -> None:
@@ -812,6 +892,10 @@ class NovaUiBridge(QObject):
         if self._unsubscribe_voice_errors is not None:
             self._unsubscribe_voice_errors()
             self._unsubscribe_voice_errors = None
+
+        if self._unsubscribe_voice_started is not None:
+            self._unsubscribe_voice_started()
+            self._unsubscribe_voice_started = None
 
         if self._voice_input is not None:
             self._voice_input.shutdown()
@@ -917,8 +1001,8 @@ class NovaUiBridge(QObject):
 
         self.conversationsChanged.emit()
 
-    @Slot(str)
-    def delete_conversation(self, conversation_id: str) -> None:
+    @Slot(str, result=bool)
+    def delete_conversation(self, conversation_id: str) -> bool:
         try:
             conversation_uuid = UUID(conversation_id)
         except ValueError as exc:
@@ -928,7 +1012,7 @@ class NovaUiBridge(QObject):
             logger.info(
                 "No se puede borrar una conversación con solicitudes activas."
             )
-            return
+            return False
 
         repository = self._repository()
         is_active = conversation_uuid == self._conversation.conversation_id
@@ -936,7 +1020,7 @@ class NovaUiBridge(QObject):
         deleted = repository.delete(conversation_uuid)
 
         if not deleted:
-            return
+            return False
 
         self._transient_errors.pop(conversation_uuid, None)
 
@@ -946,16 +1030,211 @@ class NovaUiBridge(QObject):
 
         self.conversationsChanged.emit()
 
+        return True
+
     @Slot()
     def new_conversation(self) -> None:
+        if not self._conversation.messages:
+            self.conversationChanged.emit()  # ya hay uno vacío: se reutiliza
+            return
+
         conversation = Conversation()
-
-        self._repository().create(
-            conversation,
-            title="Nueva conversación",
-        )
-
+        self._repository().create(conversation, title="Nueva conversación")
         self._conversation = conversation
-
         self.conversationsChanged.emit()
         self.conversationChanged.emit()
+
+    # --- Interfaz (Fase 10) ---------------------------------------------
+    def _get_chat_messages(self) -> list[dict]:
+        cid = self._conversation.conversation_id
+        items = [
+            {
+                "role": m.role.value,
+                "content": m.content,
+                "time": m.created_at.astimezone().strftime("%H:%M"),
+                "streaming": False,
+            }
+            for m in self._conversation.messages
+        ]
+        partial = self._streams.get(cid)
+
+        if partial:
+            items.append({
+                "role": "assistant", "content": partial,
+                "time": "", "streaming": True,
+            })
+
+        error_text = self._transient_errors.get(cid)
+
+        if error_text:
+            items.append({
+                "role": "error", "content": error_text,
+                "time": "", "streaming": False,
+            })
+
+        return items
+
+    chatMessages = Property(list, _get_chat_messages, notify=conversationChanged)
+
+    @staticmethod
+    def _preview(text: str) -> str:
+        flat = " ".join(text.split())
+
+        if not flat:
+            return "Sin mensajes"
+
+        return flat if len(flat) <= 42 else flat[:42] + "…"
+
+    def _get_chat_list(self) -> list[dict[str, str]]:
+        return [
+            {
+                "id": row["id"],
+                "title": row["title"],
+                "preview": self._preview(row["preview"]),
+                "time": _friendly_time(row["updated_at"]),
+            }
+            for row in self._repository().list_conversation_summaries()
+        ]
+
+    chatList = Property(list, _get_chat_list, notify=conversationsChanged)
+
+    @Slot(str, result=bool)
+    def is_busy(self, conversation_id: str) -> bool:
+        try:
+            return self._requests_by_conversation.get(UUID(conversation_id), 0) > 0
+        except ValueError:
+            return False
+
+    @Slot(str)
+    def start_conversation_with(self, text: str) -> None:
+        """Inicio: crea un chat nuevo y envía el primer mensaje."""
+        if not text.strip() or self._shutting_down:
+            return
+
+        self.new_conversation()
+        self.send_message(text)
+
+    @Slot(int)
+    def set_current_page(self, page: int) -> None:
+        self._current_page = page
+
+    @Slot(str)
+    def _on_stream_chunk(self, delta: str) -> None:
+        request = self._active_request
+
+        if request is None or self._shutting_down or not delta:
+            return
+
+        cid = request.conversation_id
+
+        if cid not in self._streams:
+            self._streams[cid] = ""
+
+            if self._orchestrator.state == NovaState.PROCESSING:
+                self._orchestrator.set_state(NovaState.SPEAKING)
+
+            self._cancel_speech()
+
+            if self._voice_service is not None:
+                self._speech = self._voice_service.begin_stream()
+
+        self._streams[cid] += delta
+
+        if self._speech is not None:
+            self._speech.feed(delta)
+
+        self.streamChunk.emit(str(cid), delta)
+
+    # --- Usuario y orbe permanente ----------------------------------------
+    userName = Property(
+        str, lambda s: s._ui_settings.user_name, notify=userNameChanged
+    )
+    permanentOrbEnabled = Property(
+        bool, lambda s: s._ui_settings.orb_enabled, notify=permanentOrbChanged
+    )
+
+    @Slot(bool)
+    def set_permanent_orb(self, enabled: bool) -> None:
+        self._ui_settings = dataclasses.replace(
+            self._ui_settings, orb_enabled=bool(enabled)
+        )
+        save_ui_settings(self._ui_settings)
+        self.permanentOrbChanged.emit()
+
+    @Slot(str, result=bool)
+    def set_user_name(self, name: str) -> bool:
+        clean = " ".join(name.split())
+
+        if not clean or len(clean) > 40:
+            return False
+
+        self._ui_settings = dataclasses.replace(
+            self._ui_settings, user_name=clean
+        )
+        save_ui_settings(self._ui_settings)
+        self.userNameChanged.emit()
+
+        return True
+
+    @Slot(str)
+    def set_assistant_identity(self, identity: str) -> None:
+        if self._identity_service is None:
+            return
+
+        try:
+            target = Identity(identity)
+        except ValueError:
+            return
+
+        self._identity_service.switch(target)
+
+        if self._voice_service is not None:
+            self._voice_service.update_settings(identity=target)
+            self.voiceSettingsChanged.emit()
+
+        self.identityChanged.emit()
+
+    # --- Voz: estado real y prueba -----------------------------------------
+    voiceOnline = Property(
+        bool,
+        lambda s: bool(s._voice_service and s._voice_service.settings.prefer_online),
+        notify=voiceSettingsChanged,
+    )
+
+    def _get_voice_status(self) -> str:
+        service = self._voice_service
+
+        if service is None:
+            return "La voz no está disponible."
+
+        if not service.settings.enabled:
+            return "Voz desactivada."
+
+        if "edge" in self._voice_provider:
+            return "En uso: Edge (en línea)."
+
+        error = service.online_error
+
+        if service.settings.prefer_online:
+            if error:
+                return f"Edge no disponible ({error}); usando Piper."
+
+            return "Voz en línea activada: se usará en la próxima respuesta."
+
+        return "En uso: Piper (local)."
+
+    voiceStatus = Property(str, _get_voice_status, notify=voiceSettingsChanged)
+
+    def _on_voice_started(self, event: Event) -> None:
+        # Hilo de voz: solo emite una señal de Qt.
+        self.voiceProviderRaised.emit(str(event.payload.get("provider", "")))
+
+    @Slot(str)
+    def _on_voice_provider(self, provider: str) -> None:
+        self._voice_provider = provider
+        self.voiceSettingsChanged.emit()
+
+    @Slot()
+    def test_voice(self) -> None:
+        if self._voice_service is not None:
+            self._voice_service.speak("Hola, Jefe. Esta es mi voz.")

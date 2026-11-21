@@ -1,32 +1,21 @@
 import QtQuick
 import QtQuick.Window
-
 import "components"
 
 Window {
     id: root
-
     objectName: "PermanentOrb"
 
-    width: 110
-    height: 110
+    readonly property int orbSize: 90
+    readonly property int box: Math.round(orbSize * Theme.orbScale) + 6
 
-    visible: true
-
+    width: box
+    height: box
+    visible: novaBridge.permanentOrbEnabled
     color: "transparent"
-
-    flags: Qt.FramelessWindowHint
-         | Qt.WindowStaysOnTopHint
-         | Qt.WindowDoesNotAcceptFocus
-         | Qt.Tool
-
+    flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowDoesNotAcceptFocus | Qt.Tool
     x: Screen.width - width - 28
     y: Screen.height - height - 80
 
-    NovaOrb {
-        anchors.centerIn: parent
-
-        orbState: novaBridge.orbState
-        orbScale: 0.42
-    }
+    Orb { anchors.centerIn: parent; size: root.orbSize; mode: novaBridge.orbState }
 }

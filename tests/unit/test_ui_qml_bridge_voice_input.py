@@ -96,3 +96,53 @@ def test_transcripts_are_ignored_after_shutdown(qapp):
     voice_input.on_transcript("hola")
 
     repository.add_message.assert_not_called()
+
+
+def test_transcript_on_home_starts_conversation_and_requests_navigation(qapp):
+    bridge, _, _, voice_input = create_bridge()
+    navigation = MagicMock()
+    bridge.navigateRequested.connect(navigation)
+
+    with patch.object(bridge, "_process_next_request"):
+        voice_input.on_transcript("crear un informe")
+
+    assert bridge.messages[-1] == {
+        "role": "user",
+        "content": "crear un informe",
+    }
+    navigation.assert_called_once_with(1)
+
+
+def test_transcript_on_other_page_does_not_request_navigation(qapp):
+    bridge, _, _, voice_input = create_bridge()
+    navigation = MagicMock()
+    bridge.navigateRequested.connect(navigation)
+    bridge.set_current_page(2)
+
+    with patch.object(bridge, "_process_next_request"):
+        voice_input.on_transcript("consultar mi memoria")
+
+    assert bridge.messages[-1] == {
+        "role": "user",
+        "content": "consultar mi memoria",
+    }
+    navigation.assert_not_called()
+
+
+def test_empty_transcript_on_home_does_not_request_navigation(qapp):
+    bridge, _, repository, voice_input = create_bridge()
+    navigation = MagicMock()
+    conversation_changed = MagicMock()
+
+    bridge.navigateRequested.connect(navigation)
+    bridge.conversationChanged.connect(conversation_changed)
+
+    original_conversation = bridge._conversation
+    initial_create_count = repository.create.call_count
+
+    voice_input.on_transcript("")
+
+    assert bridge._conversation is original_conversation
+    navigation.assert_not_called()
+    conversation_changed.assert_not_called()
+    assert repository.create.call_count == initial_create_count

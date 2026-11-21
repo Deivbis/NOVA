@@ -269,7 +269,39 @@ class ConversationRepository:
             raise RepositoryError(
                 "Unable to list conversations."
             ) from exc
+        
+    def list_conversation_summaries(self) -> list[dict[str, str]]:
+        """Conversaciones con una vista previa de su último mensaje."""
+        try:
+            rows = self.connection.execute(
+                """
+                SELECT
+                    c.id, c.title, c.created_at, c.updated_at,
+                    COALESCE((
+                        SELECT m.content
+                        FROM conversation_messages m
+                        WHERE m.conversation_id = c.id
+                        ORDER BY m.created_at DESC, m.rowid DESC
+                        LIMIT 1
+                    ), '') AS preview
+                FROM conversations c
+                ORDER BY c.updated_at DESC, c.id DESC
+                """
+            ).fetchall()
 
+            return [
+                {
+                    "id": str(row["id"]),
+                    "title": str(row["title"]),
+                    "created_at": str(row["created_at"]),
+                    "updated_at": str(row["updated_at"]),
+                    "preview": str(row["preview"]),
+                }
+                for row in rows
+            ]
+        except sqlite3.Error as exc:
+            raise RepositoryError("Unable to list conversations.") from exc
+        
     def get_messages(
         self,
         conversation_id: UUID,
